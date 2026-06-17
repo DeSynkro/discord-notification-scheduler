@@ -9,6 +9,10 @@ Built by [DeSynkro](https://desynkro.com) with assistance from
 [Opencode](https://opencode.ai). Made with love for the community, and a special
 thank you to everyone who was welcoming and kind, it means a lot.
 
+## Requirements
+
+- [Docker](https://docs.docker.com/engine/install/) with the Compose plugin
+
 ## Quick start
 
 ### First time
