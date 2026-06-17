@@ -14,6 +14,7 @@ thank you to everyone who was welcoming and kind, it means a lot.
 ```bash
 git clone https://codeberg.org/DeSynkro/discord-notification-scheduler.git
 cd discord-notification-scheduler
+mkdir -p data
 sudo chown -R 1001:1001 data/
 docker compose up -d
 ```
@@ -118,6 +119,7 @@ The container runs as uid 1001 and needs write access to `./data/`. If you see
 permission errors, the files are likely owned by your host user:
 
 ```bash
+mkdir -p data
 sudo chown -R 1001:1001 data/
 ```
 
