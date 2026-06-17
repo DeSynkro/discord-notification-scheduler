@@ -118,17 +118,18 @@ body {
   margin-bottom: 0.6rem;
 }
 
-.wh-form-area form {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  align-items: center;
+.wh-form-area.hidden {
+  display: none;
 }
 
-.wh-form-area input[type="text"],
-.wh-form-area input[type="url"] {
-  flex: 1;
-  min-width: 180px;
+.wh-form-area form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.wh-form-area form input {
+  width: 100%;
 }
 
 /* Alarm cards */
@@ -559,6 +560,55 @@ body {
 .preview-box em { color: var(--text-dim); }
 .preview-box del { text-decoration: line-through; opacity: 0.7; }
 
+.preview-box h1,
+.preview-box h2,
+.preview-box h3,
+.preview-box h4,
+.preview-box h5,
+.preview-box h6 {
+  margin: 0.5rem 0 0.25rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--text-bright);
+}
+.preview-box h1 { font-size: 1.2rem; }
+.preview-box h2 { font-size: 1.1rem; }
+.preview-box h3 { font-size: 1rem; }
+.preview-box h4 { font-size: 0.92rem; }
+.preview-box h5 { font-size: 0.85rem; }
+.preview-box h6 { font-size: 0.82rem; opacity: 0.8; }
+
+.preview-box hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 0.5rem 0;
+}
+
+.preview-box blockquote {
+  margin: 0.3rem 0;
+  padding: 0.2rem 0.5rem;
+  border-left: 3px solid var(--primary);
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.preview-box li {
+  margin-left: 1.2rem;
+  margin-bottom: 0.15rem;
+}
+
+.preview-box .spoiler {
+  background: #2a2a2a;
+  color: transparent;
+  border-radius: 3px;
+  padding: 0 0.2rem;
+  cursor: default;
+}
+.preview-box .spoiler:hover {
+  color: var(--text);
+  background: transparent;
+}
+
 /* Toasts */
 .toast-container {
   position: fixed;
@@ -576,7 +626,7 @@ body {
   border-radius: var(--radius-sm);
   font-size: 0.85rem;
   font-weight: 500;
-  animation: slideIn 0.25s ease;
+  animation: slideIn 0.2s ease;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 

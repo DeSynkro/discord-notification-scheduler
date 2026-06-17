@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Discord Notification Scheduler</title>
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/style.css?v=1.1">
   <script src="https://unpkg.com/htmx.org@2.0.4"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
@@ -26,9 +26,11 @@
     <section class="section">
       <div class="section-header">
         <h2>&#x1f517; Webhooks</h2>
-        <button class="btn btn-primary btn-sm" hx-get="/webhooks/new" hx-target="#wh-form-area" hx-swap="innerHTML">+ Add</button>
+        <button class="btn btn-primary btn-sm" onclick="document.getElementById('wh-form-area').classList.toggle('hidden')">+ Add</button>
       </div>
-      <div id="wh-form-area" class="wh-form-area"></div>
+      <div id="wh-form-area" class="wh-form-area hidden">
+        {{ _webhook_form | safe }}
+      </div>
       <div id="webhook-list" class="webhook-list">
         {% for wh in webhooks %}
           {{ _webhook_chip(wh) | safe }}
@@ -69,42 +71,82 @@
       fields.style.display = radio.value === 'embed' ? 'block' : 'none';
     }
 
-    // Simple markdown preview
-    document.addEventListener('input', function(e) {
-      const textarea = e.target.closest('form') ? e.target.closest('form').querySelector('textarea[name="message"]') : null;
-      if (!textarea) return;
-      const preview = document.getElementById('preview-area');
+    document.getElementById('modal-area').addEventListener('input', function(e) {
+      if (e.target.tagName !== 'TEXTAREA' || e.target.name !== 'message') return;
+      var preview = document.getElementById('preview-area');
       if (!preview) return;
-      const md = textarea.value;
+      var md = e.target.value;
       if (!md) { preview.innerHTML = ''; preview.style.display = 'none'; return; }
-
-      let html = md
+      var html = md
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
         .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/^###### (.+)$/gm, '<h6>$1</h6>')
+        .replace(/^##### (.+)$/gm, '<h5>$1</h5>')
+        .replace(/^#### (.+)$/gm, '<h4>$1</h4>')
+        .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+        .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+        .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+        .replace(/^---$/gm, '<hr>')
+        .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
+        .replace(/^- (.+)$/gm, '<li class="ul-item">$1</li>')
+        .replace(/^\d+\. (.+)$/gm, '<li class="ol-item">$1</li>')
         .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
         .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
         .replace(/\*(.+?)\*/g, '<em>$1</em>')
         .replace(/~~(.+?)~~/g, '<del>$1</del>')
+        .replace(/\|\|(.+?)\|\|/g, '<span class="spoiler">$1</span>')
         .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>')
         .replace(/\n/g, '<br>');
-
       preview.innerHTML = html;
       preview.style.display = 'block';
     });
 
-    // Enter key on webhook form to submit
-    document.addEventListener('keydown', function(e) {
-      if (e.key === 'Escape') closeModal();
-    });
+    function showToast(msg, type) {
+      var area = document.getElementById('toast-area');
+      var el = document.createElement('div');
+      el.className = 'toast toast-' + (type || 'ok');
+      el.textContent = msg;
+      area.appendChild(el);
+      dismissAfter(el, 4000);
+    }
 
-    // Auto-dismiss toasts after 4 seconds
-    document.addEventListener('htmx:afterSwap', function() {
-      document.querySelectorAll('.toast').forEach(function(t) {
-        setTimeout(function() { t.remove(); }, 4000);
+    function dismissAfter(el, ms) {
+      setTimeout(function() {
+        el.style.transition = 'opacity 0.5s';
+        el.style.opacity = '0';
+        setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 500);
+      }, ms);
+    }
+
+    // Auto-dismiss any toast that enters the DOM (OOB or client-created)
+    var obs = new MutationObserver(function(ms) {
+      ms.forEach(function(m) {
+        for (var i = 0; i < m.addedNodes.length; i++) {
+          var n = m.addedNodes[i];
+          if (n.nodeType === 1 && n.classList.contains('toast') && !n.dataset.tid) {
+            n.dataset.tid = '1';
+            dismissAfter(n, 4000);
+          }
+        }
       });
+    });
+    obs.observe(document.getElementById('toast-area'), { childList: true });
+
+    // Close webhook form after successful save
+    document.body.addEventListener('htmx:afterRequest', function(e) {
+      if (e.detail.elt && e.detail.elt.id === 'wh-form') {
+        if (e.detail.successful) {
+          showToast('Webhook added', 'ok');
+          e.detail.elt.reset();
+          e.detail.elt.closest('.wh-form-area').classList.add('hidden');
+        } else {
+          var msg = e.detail.xhr.getResponseHeader('X-Toast-Message') || 'Error';
+          showToast(msg, 'err');
+        }
+      }
     });
   </script>
 </body>

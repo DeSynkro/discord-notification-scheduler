@@ -133,6 +133,7 @@ async def dashboard(request: Request):
         "days": DAYS_OF_WEEK,
         "_alarm_card": _alarm_card_html,
         "_webhook_chip": _webhook_chip_html,
+        "_webhook_form": WEBHOOK_FORM,
     })
 
 
@@ -140,13 +141,8 @@ WEBHOOK_FORM = """<form id="wh-form" hx-post="/webhooks" hx-target="#webhook-lis
   <input type="text" name="name" placeholder="Name" required>
   <input type="url" name="url" placeholder="https://discord.com/api/webhooks/..." required>
   <button type="submit" class="btn btn-primary btn-sm">Save</button>
-  <button type="button" class="btn btn-sm" onclick="document.getElementById('wh-form-area').innerHTML=''">Cancel</button>
+  <button type="button" class="btn btn-sm" onclick="this.closest('.wh-form-area').classList.add('hidden')">Cancel</button>
 </form>"""
-
-
-@app.get("/webhooks/new", response_class=HTMLResponse)
-async def new_webhook_form():
-    return WEBHOOK_FORM
 
 
 @app.get("/webhooks", response_class=HTMLResponse)
@@ -164,20 +160,24 @@ async def create_webhook(name: Annotated[str, Form()], url: Annotated[str, Form(
         error = str(e)
         if "url" in str(e).lower():
             error = "Must be a valid Discord webhook URL"
-        return f"""{await list_webhooks()}
-<div id="toast-area" hx-swap-oob="beforeend" class="toast toast-err">{error}</div>"""
+        return HTMLResponse(
+            content=await list_webhooks(),
+            status_code=400,
+            headers={"X-Toast-Message": error},
+        )
 
     webhooks = read_json("webhooks")
     if any(w["name"] == wh.name for w in webhooks):
-        return f"""{await list_webhooks()}
-<div id="toast-area" hx-swap-oob="beforeend" class="toast toast-err">Webhook "{wh.name}" already exists</div>"""
+        return HTMLResponse(
+            content=await list_webhooks(),
+            status_code=409,
+            headers={"X-Toast-Message": f'Webhook "{wh.name}" already exists'},
+        )
 
     webhooks.append(wh.model_dump())
     write_json("webhooks", webhooks)
 
-    return f"""{await list_webhooks()}
-<div id="toast-area" hx-swap-oob="beforeend" class="toast toast-ok">Webhook added</div>
-<div id="wh-form-area" hx-swap-oob="true"></div>"""
+    return await list_webhooks()
 
 
 @app.delete("/webhooks/{name}", response_class=HTMLResponse)
