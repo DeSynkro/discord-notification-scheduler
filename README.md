@@ -11,6 +11,8 @@ thank you to everyone who was welcoming and kind, it means a lot.
 
 ## Quick start
 
+### First time
+
 ```bash
 git clone https://codeberg.org/DeSynkro/discord-notification-scheduler.git
 cd discord-notification-scheduler
@@ -20,6 +22,13 @@ docker compose up -d
 ```
 
 Open [http://localhost:9001](http://localhost:9001)
+
+### Update to latest version
+
+```bash
+git pull
+docker compose up --build -d
+```
 
 **Webhook URLs** must match the Discord format:
 `https://discord.com/api/webhooks/<id>/<token>`
@@ -106,9 +115,9 @@ Discord. Nothing else.
 │   │   └── index.html      Single-page dashboard
 │   └── static/
 │       └── style.css       Dark theme styles
-└── data/
-    ├── alarms.json         Alarm storage (starts as [])
-    └── webhooks.json       Webhook storage (starts as [])
+└── data/                  Auto-created at startup (gitignored)
+    ├── alarms.json
+    └── webhooks.json
 ```
 
 ## Troubleshooting
