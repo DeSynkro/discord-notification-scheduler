@@ -12,7 +12,7 @@ thank you to everyone who was welcoming and kind, it means a lot.
 ## Quick start
 
 ```bash
-git clone <repo-url>
+git clone https://codeberg.org/DeSynkro/discord-notification-scheduler.git
 cd discord-notification-scheduler
 sudo chown -R 1001:1001 data/
 docker compose up -d
