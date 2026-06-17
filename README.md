@@ -7,7 +7,7 @@ times. Runs entirely in Docker with no host dependencies.
 
 Built by [DeSynkro](https://desynkro.com) with assistance from
 [Opencode](https://opencode.ai). Made with love for the community, and a special
-thank you to everyone who was welcoming and kind -- it means a lot.
+thank you to everyone who was welcoming and kind, it means a lot.
 
 ## Quick start
 
@@ -30,8 +30,8 @@ Open [http://localhost:9001](http://localhost:9001)
 ## Why this exists
 
 There are plenty of hosted services that can fire a webhook on a schedule. but
-they require trust -- trust that your webhook URL wont be logged, trust that
-your message content isnt mined, trust that the service will be around next
+they require trust, trust that your webhook URL wont be logged, trust that
+your message content isn't mined, trust that the service will be around next
 month.
 
 This project flips that. You run it on your own machine, your own network,
@@ -40,14 +40,14 @@ Just Docker and a JSON file you can copy with one command.
 
 ## Features
 
--   **Self-hosted and private** -- runs on your hardware, zero cloud
+-   **Self-hosted and private** - runs on your hardware, zero cloud
     dependencies
--   **Zero telemetry** -- no analytics, no tracking, no phone-home, no CDN
--   **Your data, your rules** -- webhooks and alarms stored as plain JSON,
+-   **Zero telemetry** - no analytics, no tracking, no phone-home, no CDN
+-   **Your data, your rules** - webhooks and alarms stored as plain JSON,
     fully portable, backup by copying one folder
--   **SSRF-safe** -- webhook URLs validated against Discords exact pattern;
+-   **SSRF-safe** - webhook URLs validated against Discords exact pattern;
     no arbitrary outbound requests
--   **Minimal outbound traffic** -- the only data leaving your machine is the
+-   **Minimal outbound traffic** - the only data leaving your machine is the
     message you scheduled, delivered to Discord over HTTPS
 -   One `docker compose up` and done
 -   Dark-themed web UI using HTMX and FastAPI
