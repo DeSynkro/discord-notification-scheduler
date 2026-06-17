@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Discord Notification Scheduler</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+  </style>
+</head>
+<body>
+  <div id="toast-area" class="toast-container"></div>
+
+  <header class="header">
+    <div class="header-inner">
+      <h1>&#x1f4e2; Discord Notification Scheduler</h1>
+      <p class="subtitle">Schedule messages to Discord webhooks on your terms</p>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- Webhooks -->
+    <section class="section">
+      <div class="section-header">
+        <h2>&#x1f517; Webhooks</h2>
+        <button class="btn btn-primary btn-sm" hx-get="/webhooks/new" hx-target="#wh-form-area" hx-swap="innerHTML">+ Add</button>
+      </div>
+      <div id="wh-form-area" class="wh-form-area"></div>
+      <div id="webhook-list" class="webhook-list">
+        {% for wh in webhooks %}
+          {{ _webhook_chip(wh) | safe }}
+        {% else %}
+          <span class="empty">No webhooks yet</span>
+        {% endfor %}
+      </div>
+    </section>
+
+    <!-- Alarms -->
+    <section class="section">
+      <div class="section-header">
+        <h2>&#x23f0; Alarms</h2>
+        <button class="btn btn-primary" hx-get="/alarms/new" hx-target="#modal-area" hx-swap="innerHTML">+ New Alarm</button>
+      </div>
+      <div id="alarm-list" class="alarm-list">
+        {% for alarm in alarms %}
+          {{ _alarm_card(alarm, webhooks) | safe }}
+        {% else %}
+          <span class="empty">No alarms yet</span>
+        {% endfor %}
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Modal container -->
+  <div id="modal-area"></div>
+
+  <script>
+    function closeModal(e) {
+      if (e && e.target !== e.currentTarget) return;
+      document.getElementById('modal-area').innerHTML = '';
+    }
+
+    function toggleEmbed(radio) {
+      const fields = document.getElementById('embed-fields');
+      fields.style.display = radio.value === 'embed' ? 'block' : 'none';
+    }
+
+    // Simple markdown preview
+    document.addEventListener('input', function(e) {
+      const textarea = e.target.closest('form') ? e.target.closest('form').querySelector('textarea[name="message"]') : null;
+      if (!textarea) return;
+      const preview = document.getElementById('preview-area');
+      if (!preview) return;
+      const md = textarea.value;
+      if (!md) { preview.innerHTML = ''; preview.style.display = 'none'; return; }
+
+      let html = md
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        .replace(/~~(.+?)~~/g, '<del>$1</del>')
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>')
+        .replace(/\n/g, '<br>');
+
+      preview.innerHTML = html;
+      preview.style.display = 'block';
+    });
+
+    // Enter key on webhook form to submit
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') closeModal();
+    });
+
+    // Auto-dismiss toasts after 4 seconds
+    document.addEventListener('htmx:afterSwap', function() {
+      document.querySelectorAll('.toast').forEach(function(t) {
+        setTimeout(function() { t.remove(); }, 4000);
+      });
+    });
+  </script>
+</body>
+</html>
