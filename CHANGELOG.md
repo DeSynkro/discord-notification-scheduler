@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.2
+
+### Added
+- Live character counter (`0 / 2000`) under the message textarea in alarm
+  forms
+- Alarm list auto-refreshes every 60 seconds - scheduled fire badges appear
+  without a manual page reload
+
+### Changed
+- Test button now updates `last_fired` timestamp and swaps the alarm card in
+  place - Sent badge appears immediately
+- Test endpoints return `X-Toast-Message`/`X-Toast-Type` response headers
+  instead of OOB HTML fragments
+- Toasts shown via `htmx:afterRequest` handler, no longer dependent on
+  MutationObserver timing
+
 ## 1.1
 
 ### Added

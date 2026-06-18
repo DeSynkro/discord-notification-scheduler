@@ -46,7 +46,7 @@
         <h2>&#x23f0; Alarms</h2>
         <button class="btn btn-primary" hx-get="/alarms/new" hx-target="#modal-area" hx-swap="innerHTML">+ New Alarm</button>
       </div>
-      <div id="alarm-list" class="alarm-list">
+      <div id="alarm-list" class="alarm-list" hx-get="/alarms" hx-trigger="every 60s" hx-swap="innerHTML">
         {% for alarm in alarms %}
           {{ _alarm_card(alarm, webhooks) | safe }}
         {% else %}
@@ -73,6 +73,8 @@
 
     document.getElementById('modal-area').addEventListener('input', function(e) {
       if (e.target.tagName !== 'TEXTAREA' || e.target.name !== 'message') return;
+      var charCount = document.getElementById('char-count');
+      if (charCount) charCount.textContent = e.target.value.length + ' / 2000';
       var preview = document.getElementById('preview-area');
       if (!preview) return;
       var md = e.target.value;
@@ -135,16 +137,17 @@
     });
     obs.observe(document.getElementById('toast-area'), { childList: true });
 
-    // Close webhook form after successful save
     document.body.addEventListener('htmx:afterRequest', function(e) {
+      var msg = e.detail.xhr.getResponseHeader('X-Toast-Message');
+      if (msg) {
+        showToast(msg, e.detail.xhr.getResponseHeader('X-Toast-Type') || 'ok');
+        return;
+      }
       if (e.detail.elt && e.detail.elt.id === 'wh-form') {
         if (e.detail.successful) {
           showToast('Webhook added', 'ok');
           e.detail.elt.reset();
           e.detail.elt.closest('.wh-form-area').classList.add('hidden');
-        } else {
-          var msg = e.detail.xhr.getResponseHeader('X-Toast-Message') || 'Error';
-          showToast(msg, 'err');
         }
       }
     });

@@ -1,10 +1,11 @@
 import re
+from datetime import datetime
 from contextlib import asynccontextmanager
 from typing import Annotated
 
 from pathlib import Path
 
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, Form, Request, Response
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -99,7 +100,7 @@ def _alarm_card_html(alarm: dict, webhooks: list[dict]) -> str:
       </label>
       <button class="btn-icon" hx-get="{edit_url}" hx-target="#modal-area" hx-swap="innerHTML" title="Edit">&#x270e;</button>
       <button class="btn-icon btn-icon-danger" hx-delete="{delete_url}" hx-target="#alarm-{alarm["id"]}" hx-swap="outerHTML" hx-confirm="Delete this alarm?" title="Delete">&#x2716;</button>
-      <button class="btn-test" hx-post="{test_url}" hx-target="#toast-area" hx-swap="beforeend" title="Send test">&#x25b6; Test</button>
+      <button class="btn-test" hx-post="{test_url}" hx-target="#alarm-{alarm["id"]}" hx-swap="outerHTML" title="Send test">&#x25b6; Test</button>
     </div>
   </div>
 </div>"""
@@ -117,7 +118,7 @@ def _webhook_chip_html(wh: dict) -> str:
     return f"""<div class="webhook-chip" id="wh-{safe}">
   <span class="wh-name">{name}</span>
   <button class="btn-icon btn-icon-danger btn-icon-xs" hx-delete="{delete_url}" hx-target="#wh-{safe}" hx-swap="outerHTML" hx-confirm="Delete webhook '{name}'?" title="Delete">&times;</button>
-  <button class="btn-icon btn-icon-xs" hx-post="{test_url}" hx-target="#toast-area" hx-swap="beforeend" title="Test webhook">&#x25b6;</button>
+  <button class="btn-icon btn-icon-xs" hx-post="{test_url}" hx-swap="none" title="Test webhook">&#x25b6;</button>
 </div>"""
 
 
@@ -197,14 +198,13 @@ async def delete_webhook(name: str):
     return ""
 
 
-@app.post("/webhooks/{name}/test", response_class=HTMLResponse)
+@app.post("/webhooks/{name}/test")
 async def test_webhook(name: str):
     webhooks = read_json("webhooks")
     wh = next((w for w in webhooks if w["name"] == name), None)
     if not wh:
-        return f'<div class="toast toast-err">Webhook "{name}" not found</div>'
+        return Response("", headers={"X-Toast-Message": f'Webhook "{name}" not found', "X-Toast-Type": "err"})
 
-    # Build a quick test alarm object and send
     test_alarm = Alarm(
         name="Test",
         webhook_name=name,
@@ -214,8 +214,8 @@ async def test_webhook(name: str):
     )
     success, err = await send_webhook(test_alarm)
     if success:
-        return f'<div class="toast toast-ok">Test sent to "{name}"</div>'
-    return f'<div class="toast toast-err">Test failed: {err}</div>'
+        return Response("", headers={"X-Toast-Message": f'Test sent to "{name}"', "X-Toast-Type": "ok"})
+    return Response("", headers={"X-Toast-Message": f"Test failed: {err}", "X-Toast-Type": "err"})
 
 
 @app.get("/alarms", response_class=HTMLResponse)
@@ -276,6 +276,7 @@ def _form_html(alarm: dict | None = None) -> str:
 
       <label>Message <span class="hint">(Discord markdown supported)</span></label>
       <textarea name="message" rows="4" required maxlength="2000">{msg_val}</textarea>
+      <div id="char-count" class="char-count">0 / 2000</div>
       <div id="preview-area" class="preview-box"></div>
 
       <div class="msg-type-row">
@@ -439,14 +440,18 @@ async def test_alarm(alarm_id: str):
     alarms = read_json("alarms")
     raw = next((a for a in alarms if a["id"] == alarm_id), None)
     if not raw:
-        return '<div class="toast toast-err">Alarm not found</div>'
+        return HTMLResponse("", headers={"X-Toast-Message": "Alarm not found", "X-Toast-Type": "err"})
 
     try:
         alarm = Alarm(**raw)
     except Exception as e:
-        return f'<div class="toast toast-err">Invalid alarm data: {e}</div>'
+        return HTMLResponse("", headers={"X-Toast-Message": f"Invalid alarm data: {e}", "X-Toast-Type": "err"})
 
     success, err = await send_webhook(alarm)
     if success:
-        return '<div class="toast toast-ok">Test message sent!</div>'
-    return f'<div class="toast toast-err">Test failed: {err}</div>'
+        raw["last_fired"] = datetime.now(ZoneInfo("UTC")).isoformat()
+        write_json("alarms", alarms)
+        webhooks = read_json("webhooks")
+        card = _alarm_card_html(raw, webhooks)
+        return HTMLResponse(card, headers={"X-Toast-Message": "Test message sent!", "X-Toast-Type": "ok"})
+    return HTMLResponse("", headers={"X-Toast-Message": f"Test failed: {err}", "X-Toast-Type": "err"})
