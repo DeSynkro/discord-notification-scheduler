@@ -198,6 +198,7 @@ GNU General Public License v3.0 or later. See [LICENSE](LICENSE).
 -   Assisted by [Opencode](https://opencode.ai)
 -   Thank you to the self-hosted and Discord communities for being welcoming
 
+
 <p align="center">
   <a href="https://desynkro.com" target="_blank">
     <img src="app/static/desynkro.png" width="240"
