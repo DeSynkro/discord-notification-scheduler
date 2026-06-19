@@ -187,7 +187,7 @@ GNU General Public License v3.0 or later. See [LICENSE](LICENSE).
 
 <p align="center">
   <a href="https://desynkro.com" target="_blank">
-    <img src="app/static/desynkro.png" width="300"
+    <img src="app/static/desynkro.png" width="240"
          alt="DeSynkro"
          style="background:#0d1117;border-radius:8px;padding:8px 14px">
   </a>
