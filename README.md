@@ -1,13 +1,28 @@
-# Discord Notification Scheduler
+<p align="center">
+  <img src="app/static/favicon/android-chrome-192x192.png" width="64" alt="logo">
+</p>
 
-A self-hosted web app to schedule and send Discord webhook messages at specific
-times. Runs entirely in Docker with no host dependencies.
+<h1 align="center">Discord Notification Scheduler</h1>
 
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+<p align="center">
+  A self-hosted web app to schedule and send Discord webhook messages at specific
+  times. Runs entirely in Docker with no host dependencies.
+</p>
 
-Built by [DeSynkro](https://desynkro.com) with assistance from
-[Opencode](https://opencode.ai). Made with love for the community, and a special
-thank you to everyone who was welcoming and kind, it means a lot.
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="License: GPL v3"></a>
+</p>
+
+<p align="center">
+  Built by <a href="https://desynkro.com">DeSynkro</a>
+  <img src="app/static/desynkro.png" width="22" style="vertical-align:middle;background:#0d1117;border-radius:4px;padding:2px">
+  with assistance from <a href="https://opencode.ai">Opencode</a>.
+</p>
+
+<p align="center">
+  Made with love for the community, and a special thank you to everyone who was
+  welcoming and kind, it means a lot.
+</p>
 
 ## Requirements
 
@@ -39,7 +54,10 @@ docker compose up --build -d
 
 ## Screenshots
 
-![screenshot](thumbnail.png)
+<p align="center">
+  <img src="app/static/screenshots/dashboard.webp" width="48%" alt="Dashboard">
+  <img src="app/static/screenshots/alarm-form.webp" width="48%" alt="Alarm form">
+</p>
 
 ## Why this exists
 
@@ -109,7 +127,6 @@ HTMX, fonts, and all other assets are served directly from the app itself,
 ├── .gitignore              Git rules
 ├── LICENSE                 GPL v3
 ├── README.md               This file
-├── thumbnail.png           Project screenshot
 ├── app/
 │   ├── __init__.py
 │   ├── main.py             FastAPI routes and HTMX handlers
@@ -120,7 +137,12 @@ HTMX, fonts, and all other assets are served directly from the app itself,
 │   ├── templates/
 │   │   └── index.html      Single-page dashboard
 │   └── static/
-│       └── style.css       Dark theme styles
+│       ├── style.css       Dark theme styles
+│       ├── htmx.min.js     HTMX v2.0.4 (self-hosted)
+│       ├── desynkro.png    DeSynkro logo
+│       ├── fonts/          Inter variable font (self-hosted)
+│       ├── favicon/        Full favicon set
+│       └── screenshots/    Dashboard and alarm form previews
 └── data/                  Auto-created at startup (gitignored)
     ├── alarms.json
     └── webhooks.json

@@ -1,5 +1,48 @@
 # Changelog
 
+## 1.4
+
+### Added
+- Cards and modals now have a frosted glass look with blur
+- Space background with drifting glows that slowly shift around
+- Cards and chips gently lift and glow on hover
+- Items animate in with a staggered entrance on page refresh
+- A gentle light ripple glides across the header
+- Modals pop in with a smooth scale-and-slide reveal
+- Timezone and message type (Plain Text / Rich Embed) shown on alarm cards
+- Stagger entrance now fires on initial page load too (was only running on
+  HTMX refreshes)
+- Expanded timezone picker from ~68 curated zones to the full IANA set (~600)
+- Screenshots converted to WebP and moved to `app/static/screenshots/`
+- DeSynkro logo added to README credits
+
+### Changed
+- Cards are now semi-transparent for the glass effect
+- Softer corners and tighter spacing between cards
+- Header gradient shifted to a deep blue-to-sky palette
+- Shimmer animation uses `transform` instead of `left` for better performance
+- Added `pointer-events: none` to header shimmer pseudo-element
+- Added `@media (prefers-reduced-motion: reduce)` fallback to disable
+  decorative animations
+- CSS cache-bust bumped to `v1.4`
+
+### Fixed
+- Character counter and markdown preview stopped working after submitting a
+  form. OOB swap was replacing the modal container with a fresh element,
+  destroying the event listeners. Changed to `innerHTML` swap to preserve
+  listeners.
+- Stagger entrance animation replayed on every 60-second auto-refresh, causing
+  cards to briefly vanish. Now only runs once per page load.
+- `toggleEmbed()` would throw if called when embed fields weren't in the DOM
+- Initial char count always showed "0 / 2000" in edit forms; now renders the
+  actual message length
+- Toast created by `showToast()` was dismissed twice (by timer and
+  MutationObserver). `data-tid` is now set before appending.
+- User-supplied names now HTML-escaped in alarm cards, webhook chips, and
+  dropdown options
+- Editing an alarm with embed mode showed "None" in the title field if it
+  had never been filled in
+
 ## 1.3
 
 ### Added

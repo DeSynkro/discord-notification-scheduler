@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/static/favicon/apple-touch-icon.png">
-  <link rel="stylesheet" href="/static/style.css?v=1.3">
+  <link rel="stylesheet" href="/static/style.css?v=1.4">
   <script src="/static/htmx.min.js"></script>
 </head>
 <body>
@@ -87,8 +87,14 @@
 
     function toggleEmbed(radio) {
       const fields = document.getElementById('embed-fields');
+      if (!fields) return;
       fields.style.display = radio.value === 'embed' ? 'block' : 'none';
     }
+
+    document.getElementById('modal-area').addEventListener('htmx:afterSettle', function() {
+      var ta = this.querySelector('textarea[name="message"]');
+      if (ta && ta.value) ta.dispatchEvent(new Event('input', {bubbles: true}));
+    });
 
     document.getElementById('modal-area').addEventListener('input', function(e) {
       if (e.target.tagName !== 'TEXTAREA' || e.target.name !== 'message') return;
@@ -127,6 +133,19 @@
 
     var _lastToastMsg = '';
     var _lastToastTime = 0;
+    var _staggered = false;
+
+    document.addEventListener('DOMContentLoaded', function() {
+      ['alarm-list', 'webhook-list'].forEach(function(id) {
+        var list = document.getElementById(id);
+        if (!list || !list.children.length) return;
+        Array.from(list.children).forEach(function(child, i) {
+          child.style.animationDelay = (i * 0.04) + 's';
+          child.classList.add('stagger-item');
+        });
+      });
+      _staggered = true;
+    });
 
     function showToast(msg, type) {
       var now = Date.now();
@@ -137,6 +156,7 @@
       var el = document.createElement('div');
       el.className = 'toast toast-' + (type || 'ok');
       el.textContent = msg;
+      el.dataset.tid = '1';
       area.appendChild(el);
       dismissAfter(el, 4000);
     }
@@ -170,6 +190,15 @@
       var msg = e.detail.xhr.getResponseHeader('X-Toast-Message');
       if (msg) {
         showToast(msg, e.detail.xhr.getResponseHeader('X-Toast-Type') || 'ok');
+      }
+      var target = e.detail.target;
+      if (target && (target.id === 'alarm-list' || target.id === 'webhook-list')) {
+        if (_staggered) return;
+        _staggered = true;
+        Array.from(target.children).forEach(function(child, i) {
+          child.style.animationDelay = (i * 0.04) + 's';
+          child.classList.add('stagger-item');
+        });
       }
     });
   </script>

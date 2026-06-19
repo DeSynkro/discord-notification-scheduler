@@ -75,14 +75,26 @@
   --success: #3fb950;
   --danger: #f85149;
   --danger-hover: #da3633;
-  --radius: 8px;
+  --radius: 10px;
   --radius-sm: 6px;
   --transition: 0.2s ease;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: 14px;
   color: var(--text);
-  background: var(--bg);
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(30, 58, 138, 0.22) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 20%, rgba(14, 165, 233, 0.17) 0%, transparent 50%),
+    radial-gradient(ellipse at 40% 80%, rgba(99, 102, 241, 0.13) 0%, transparent 50%),
+    #0d1117;
+  background-size: 150% 150%;
+  animation: spaceDrift 20s ease-in-out infinite;
   line-height: 1.5;
+}
+
+@keyframes spaceDrift {
+  0%, 100% { background-position: 0% 50%; }
+  33% { background-position: 100% 50%; }
+  66% { background-position: 50% 100%; }
 }
 
 body {
@@ -93,9 +105,27 @@ body {
 
 /* Header */
 .header {
-  background: linear-gradient(135deg, #5865f2 0%, #7c3aed 50%, #a855f7 100%);
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 50%, #0ea5e9 100%);
   padding: 2.5rem 1.5rem;
   text-align: center;
+}
+
+.header::after {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);
+  animation: shimmer 8s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0%, 100% { transform: translateX(-100%); }
+  50% { transform: translateX(100%); }
 }
 
 .header-inner {
@@ -142,14 +172,14 @@ body {
 
 /* Section */
 .section {
-  margin-bottom: 2rem;
+  margin-bottom: 2.5rem;
 }
 
 .section-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.85rem;
 }
 
 .section-header h2 {
@@ -172,11 +202,13 @@ body {
   align-items: center;
   gap: 0.35rem;
   padding: 0.35rem 0.7rem;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  background: rgba(22, 27, 34, 0.7);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid rgba(48, 54, 61, 0.5);
   border-radius: 999px;
   font-size: 0.85rem;
-  transition: border-color var(--transition), background var(--transition);
+  transition: border-color var(--transition), background var(--transition), box-shadow var(--transition);
 }
 
 .webhook-chip .wh-name {
@@ -185,7 +217,8 @@ body {
 }
 
 .webhook-chip:hover {
-  border-color: var(--primary);
+  border-color: rgba(59, 130, 246, 0.5);
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.12);
   background: var(--bg-hover);
 }
 
@@ -197,16 +230,19 @@ body {
 }
 
 .alarm-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  background: rgba(22, 27, 34, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(48, 54, 61, 0.6);
   border-radius: var(--radius);
-  padding: 0.85rem 1rem;
-  transition: border-color var(--transition), box-shadow var(--transition);
+  padding: 1rem 1.15rem;
+  transition: border-color var(--transition), box-shadow var(--transition), transform var(--transition);
 }
 
 .alarm-card:hover {
-  border-color: rgba(88, 101, 242, 0.4);
-  box-shadow: 0 0 0 1px rgba(88, 101, 242, 0.1);
+  border-color: rgba(59, 130, 246, 0.5);
+  box-shadow: 0 0 14px rgba(59, 130, 246, 0.15);
+  transform: translateY(-1px);
 }
 
 .alarm-main {
@@ -223,7 +259,7 @@ body {
 
 .alarm-info strong {
   display: block;
-  font-size: 0.95rem;
+  font-size: 1rem;
   color: var(--text-bright);
   font-weight: 600;
 }
@@ -423,15 +459,23 @@ body {
 }
 
 .modal-content {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  background: rgba(22, 27, 34, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(48, 54, 61, 0.5);
   border-radius: var(--radius);
   width: 90%;
   max-width: 540px;
   max-height: 85vh;
   overflow-y: auto;
   padding: 1.5rem;
-  animation: slideUp 0.2s ease;
+  animation: modalPop 0.3s ease;
+}
+
+@keyframes modalPop {
+  0% { opacity: 0; transform: scale(0.92) translateY(15px); }
+  65% { transform: scale(1.01) translateY(-1px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
 }
 
 .modal-header {
@@ -798,6 +842,10 @@ body {
   56% { transform: scale(1); }
 }
 
+.stagger-item {
+  animation: staggerIn 0.3s ease both;
+}
+
 /* Empty state */
 .empty {
   font-size: 0.85rem;
@@ -821,8 +869,24 @@ body {
   to { opacity: 1; transform: translateX(0); }
 }
 
+@keyframes staggerIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* HTMX transitions */
 .htmx-swapping {
   opacity: 0;
   transition: opacity 0.15s ease;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  :root { animation: none; }
+  .header::after { animation: none; }
+  .alarm-card, .webhook-chip { transition: none; }
+  .modal-content { animation: none; }
+  .stagger-item { animation: none; opacity: 1; transform: none; }
+  .toast { animation: none; }
+  .heart { animation: none; }
 }

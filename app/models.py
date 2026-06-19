@@ -11,32 +11,7 @@ DAYS_OF_WEEK = [
     "Thursday", "Friday", "Saturday", "Sunday"
 ]
 
-TIMEZONES = sorted([
-    # Americas
-    "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles",
-    "America/Anchorage", "America/Phoenix", "America/Toronto", "America/Vancouver",
-    "America/Mexico_City", "America/Sao_Paulo", "America/Argentina/Buenos_Aires",
-    "America/Santiago", "America/Halifax", "America/St_Johns", "Pacific/Honolulu",
-    # Europe
-    "Europe/London", "Europe/Paris", "Europe/Berlin", "Europe/Madrid",
-    "Europe/Rome", "Europe/Amsterdam", "Europe/Stockholm", "Europe/Moscow",
-    "Europe/Istanbul", "Europe/Athens", "Europe/Helsinki", "Europe/Dublin",
-    "Europe/Lisbon", "Europe/Warsaw", "Europe/Prague", "Europe/Kyiv",
-    "Europe/Bucharest", "Europe/Zurich", "Europe/Copenhagen", "Europe/Oslo",
-    # Asia
-    "Asia/Dubai", "Asia/Singapore", "Asia/Hong_Kong", "Asia/Tokyo",
-    "Asia/Seoul", "Asia/Shanghai", "Asia/Bangkok", "Asia/Taipei",
-    "Asia/Kolkata", "Asia/Karachi", "Asia/Dhaka", "Asia/Jakarta",
-    "Asia/Manila", "Asia/Kathmandu", "Asia/Riyadh", "Asia/Tel_Aviv",
-    # Australia and Pacific
-    "Australia/Perth", "Australia/Eucla", "Australia/Darwin",
-    "Australia/Adelaide", "Australia/Brisbane",
-    "Australia/Sydney", "Australia/Melbourne", "Australia/Hobart",
-    "Pacific/Auckland", "Pacific/Fiji", "Pacific/Guam", "Pacific/Port_Moresby",
-    # Africa
-    "Africa/Cairo", "Africa/Casablanca", "Africa/Johannesburg",
-    "Africa/Lagos", "Africa/Nairobi",
-])
+TIMEZONES = sorted(TIMEZONE_SET)
 
 WEBHOOK_PATTERN = re.compile(
     r"^https://discord\.com/api/webhooks/(\d{17,19})/([A-Za-z0-9_\-]+)$"
