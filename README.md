@@ -15,7 +15,6 @@
 
 <p align="center">
   Built by <a href="https://desynkro.com">DeSynkro</a>
-  <img src="app/static/desynkro.png" width="22" style="vertical-align:middle;background:#0d1117;border-radius:4px;padding:2px">
   with assistance from <a href="https://opencode.ai">Opencode</a>.
 </p>
 
@@ -55,8 +54,12 @@ docker compose up --build -d
 ## Screenshots
 
 <p align="center">
-  <img src="app/static/screenshots/dashboard.webp" width="48%" alt="Dashboard">
-  <img src="app/static/screenshots/alarm-form.webp" width="48%" alt="Alarm form">
+  <a href="app/static/screenshots/dashboard.webp" target="_blank">
+    <img src="app/static/screenshots/dashboard.webp" width="48%" alt="Dashboard">
+  </a>
+  <a href="app/static/screenshots/alarm-form.webp" target="_blank">
+    <img src="app/static/screenshots/alarm-form.webp" width="48%" alt="Alarm form">
+  </a>
 </p>
 
 ## Why this exists
@@ -181,3 +184,11 @@ GNU General Public License v3.0 or later. See [LICENSE](LICENSE).
 -   Built by [DeSynkro](https://desynkro.com)
 -   Assisted by [Opencode](https://opencode.ai)
 -   Thank you to the self-hosted and Discord communities for being welcoming
+
+<p align="center">
+  <a href="https://desynkro.com" target="_blank">
+    <img src="app/static/desynkro.png" width="28"
+         alt="DeSynkro"
+         style="background:#0d1117;border-radius:6px;padding:6px 10px">
+  </a>
+</p>
