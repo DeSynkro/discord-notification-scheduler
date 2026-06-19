@@ -54,10 +54,10 @@ docker compose up --build -d
 ## Screenshots
 
 <p align="center">
-  <a href="app/static/screenshots/dashboard.webp" target="_blank">
+  <a href="./app/static/screenshots/dashboard.webp" target="_blank">
     <img src="app/static/screenshots/dashboard.webp" width="48%" alt="Dashboard">
   </a>
-  <a href="app/static/screenshots/alarm-form.webp" target="_blank">
+  <a href="./app/static/screenshots/alarm-form.webp" target="_blank">
     <img src="app/static/screenshots/alarm-form.webp" width="48%" alt="Alarm form">
   </a>
 </p>
@@ -187,8 +187,8 @@ GNU General Public License v3.0 or later. See [LICENSE](LICENSE).
 
 <p align="center">
   <a href="https://desynkro.com" target="_blank">
-    <img src="app/static/desynkro.png" width="28"
+    <img src="app/static/desynkro.png" width="300"
          alt="DeSynkro"
-         style="background:#0d1117;border-radius:6px;padding:6px 10px">
+         style="background:#0d1117;border-radius:8px;padding:8px 14px">
   </a>
 </p>
