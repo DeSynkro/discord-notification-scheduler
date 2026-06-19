@@ -54,10 +54,10 @@ docker compose up --build -d
 ## Screenshots
 
 <p align="center">
-  <a href="./app/static/screenshots/dashboard.webp" target="_blank">
+  <a href="https://codeberg.org/DeSynkro/discord-notification-scheduler/src/branch/main/app/static/screenshots/dashboard.webp" target="_blank">
     <img src="app/static/screenshots/dashboard.webp" width="48%" alt="Dashboard">
   </a>
-  <a href="./app/static/screenshots/alarm-form.webp" target="_blank">
+  <a href="https://codeberg.org/DeSynkro/discord-notification-scheduler/src/branch/main/app/static/screenshots/alarm-form.webp" target="_blank">
     <img src="app/static/screenshots/alarm-form.webp" width="48%" alt="Alarm form">
   </a>
 </p>
