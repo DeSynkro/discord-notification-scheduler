@@ -157,6 +157,34 @@ def _webhook_chip_html(wh: dict) -> str:
 </div>"""
 
 
+@app.get("/webhooks/help", response_class=HTMLResponse)
+async def webhook_help():
+    return """<div id="modal-overlay" class="modal-overlay" onclick="closeModal(event)">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Setting up a Discord Webhook</h3>
+      <button class="btn-icon" onclick="closeModal()">&times;</button>
+    </div>
+    <ol style="margin:0;padding-left:1.2rem;line-height:1.8">
+      <li>Open a server you manage (or have "Manage Webhooks" permission in)</li>
+      <li>Go to <strong>Server Settings</strong> &gt; <strong>Integrations</strong> &gt; <strong>Webhooks</strong></li>
+      <li>Click <strong>Create Webhook</strong></li>
+      <li>Give it a name and select the channel where messages will appear</li>
+      <li>Copy the webhook URL. It looks like:<br>
+        <code style="font-size:0.8rem;word-break:break-all">https://discord.com/api/webhooks/123456789/abc-xyz...</code></li>
+      <li>Return here, click <strong>+ Add</strong>, and paste the URL</li>
+    </ol>
+    <p style="margin-top:1rem;padding:0.6rem;background:rgba(248,81,73,0.1);border-radius:6px;font-size:0.85rem">
+      Webhooks can only be created in servers, not in direct messages.
+      You need "Manage Webhooks" permission on the server.
+    </p>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-primary" onclick="closeModal()">Got it</button>
+    </div>
+  </div>
+</div>"""
+
+
 @app.get("/export")
 async def export_data():
     webhooks = read_json("webhooks")
@@ -299,6 +327,9 @@ async def import_data(file: UploadFile, mode: str = Form("merge")):
 async def dashboard(request: Request):
     webhooks = read_json("webhooks")
     alarms = read_json("alarms")
+    for a in alarms:
+        a.setdefault("created", "2000-01-01T00:00:00")
+    alarms.sort(key=lambda a: a["time"])
     return templates.TemplateResponse(request, "index.html", {
         "request": request,
         "webhooks": webhooks,
@@ -453,11 +484,26 @@ async def test_webhook(name: str):
 
 
 @app.get("/alarms", response_class=HTMLResponse)
-async def list_alarms():
+async def list_alarms(sort: str = "time_asc"):
     webhooks = read_json("webhooks")
     alarms = read_json("alarms")
+    for a in alarms:
+        a.setdefault("created", "2000-01-01T00:00:00")
+    if sort == "time_asc":
+        alarms.sort(key=lambda a: a["time"])
+    elif sort == "time_desc":
+        alarms.sort(key=lambda a: a["time"], reverse=True)
+    elif sort == "created":
+        alarms.sort(key=lambda a: a["created"], reverse=True)
+    elif sort == "created_asc":
+        alarms.sort(key=lambda a: a["created"])
+    elif sort == "name":
+        alarms.sort(key=lambda a: a["name"].lower())
+    elif sort == "name_desc":
+        alarms.sort(key=lambda a: a["name"].lower(), reverse=True)
     parts = [_alarm_card_html(a, webhooks) for a in alarms]
-    return "".join(parts) or '<span class="empty">No alarms yet</span>'
+    response = "".join(parts) or '<span class="empty">No alarms yet</span>'
+    return HTMLResponse(response, headers={"X-Sort": sort})
 
 
 def _form_html(alarm: dict | None = None) -> str:

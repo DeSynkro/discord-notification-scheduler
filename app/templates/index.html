@@ -25,7 +25,7 @@
       <p class="subtitle">Schedule messages to Discord webhooks on your terms</p>
       <div class="toolbar">
         <a href="/export" class="btn btn-sm" download onclick="showToast('Export complete', 'ok')">&#x2913; Export</a>
-        <button class="btn btn-sm" hx-get="/import/form" hx-target="#modal-area" hx-swap="innerHTML">&#x2911; Import</button>
+        <button class="btn btn-sm" hx-get="/import/form" hx-target="#modal-area" hx-swap="innerHTML">&#x2912; Import</button>
       </div>
     </div>
   </header>
@@ -36,7 +36,10 @@
     <section class="section">
       <div class="section-header">
         <h2>&#x1f517; Webhooks</h2>
-        <button class="btn btn-primary btn-sm" hx-get="/webhooks/new" hx-target="#modal-area" hx-swap="innerHTML">+ Add</button>
+        <div style="display:flex;gap:0.5rem;align-items:center">
+          <button class="btn-icon btn-icon-xs" hx-get="/webhooks/help" hx-target="#modal-area" hx-swap="innerHTML" title="How to set up a webhook">&#x24d8;</button>
+          <button class="btn btn-primary btn-sm" hx-get="/webhooks/new" hx-target="#modal-area" hx-swap="innerHTML">+ Add</button>
+        </div>
       </div>
       <div id="webhook-list" class="webhook-list" hx-get="/webhooks" hx-trigger="refresh-lists from:body" hx-swap="innerHTML">
         {% for wh in webhooks %}
@@ -55,9 +58,21 @@
     <section class="section">
       <div class="section-header">
         <h2>&#x23f0; Alarms</h2>
+        <div style="display:flex;gap:0.5rem;align-items:center">
+        <select class="btn btn-sm sort-select" name="sort"
+                hx-get="/alarms" hx-target="#alarm-list" hx-swap="innerHTML"
+                hx-trigger="change">
+          <option value="created">Newest</option>
+          <option value="created_asc">Oldest</option>
+          <option value="time_asc">Time &#x2191;</option>
+          <option value="time_desc">Time &#x2193;</option>
+          <option value="name">Name</option>
+          <option value="name_desc">Name &#x2193;</option>
+        </select>
         <button class="btn btn-primary" hx-get="/alarms/new" hx-target="#modal-area" hx-swap="innerHTML">+ New Alarm</button>
+        </div>
       </div>
-      <div id="alarm-list" class="alarm-list" hx-get="/alarms" hx-trigger="every 60s, refresh-lists from:body" hx-swap="innerHTML">
+      <div id="alarm-list" class="alarm-list" hx-get="/alarms" hx-trigger="every 60s, refresh-lists from:body" hx-swap="innerHTML" hx-include="#sort-select">
         {% for alarm in alarms %}
           {{ _alarm_card(alarm, webhooks) | safe }}
         {% else %}
@@ -199,6 +214,11 @@
           child.style.animationDelay = (i * 0.04) + 's';
           child.classList.add('stagger-item');
         });
+      }
+      var sortHeader = e.detail.xhr.getResponseHeader('X-Sort');
+      if (sortHeader) {
+        var sel = document.getElementById('sort-select');
+        if (sel) sel.value = sortHeader;
       }
     });
   </script>

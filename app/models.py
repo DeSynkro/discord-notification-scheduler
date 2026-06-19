@@ -1,5 +1,6 @@
 import re
 from uuid import uuid4
+from datetime import datetime, timezone
 from pydantic import BaseModel, field_validator, Field
 from typing import Optional
 from zoneinfo import available_timezones
@@ -60,6 +61,7 @@ class Alarm(BaseModel):
     days: list[str] = Field(default_factory=lambda: list(DAYS_OF_WEEK))
     timezone: str = "UTC"
     enabled: bool = True
+    created: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     last_fired: Optional[str] = None  # ISO timestamp of last successful send
     last_error: Optional[str] = None  # error message from last attempt
 

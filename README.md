@@ -51,6 +51,19 @@ docker compose up --build -d
 **Webhook URLs** must match the Discord format:
 `https://discord.com/api/webhooks/<id>/<token>`
 
+## Setting up a Discord Webhook
+
+1.  Open a server you manage (or have "Manage Webhooks" permission in)
+2.  Go to **Server Settings** > **Integrations** > **Webhooks**
+3.  Click **Create Webhook**
+4.  Give it a name and select the channel where messages will appear
+5.  Copy the webhook URL. It looks like:
+    `https://discord.com/api/webhooks/123456789/abc-xyz...`
+6.  Return to the app, click **+ Add** in the Webhooks section, and paste the URL
+
+> Webhooks can only be created in servers, not in direct messages.
+> You need "Manage Webhooks" permission on the server.
+
 ## Screenshots
 
 <p align="center">

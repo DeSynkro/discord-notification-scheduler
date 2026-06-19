@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.4.1
+
+### Added
+- Sort dropdown for alarm list: Time ascending/descending, newest/oldest
+  first, name A-Z/Z-A. Persists across auto-refresh via `hx-vals`.
+- `created` timestamp field on alarms, auto-set on creation, for tracking
+  creation order.
+- Help button in the Webhooks section that opens a modal with step-by-step
+  instructions for setting up a Discord webhook.
+- Setting up a Discord Webhook guide in the README.
+
+### Changed
+- Default alarm sort changed from array insertion order to time ascending
+  (earliest time first).
+- Import button arrow changed from right-pointing to up arrow to better
+  convey the upload action.
+- Container padding changed from `1.5rem` all sides to `3rem` top / `1rem` sides / `1.5rem` bottom.
+- Sort persistence changed from `hx-vals` to `hx-include` for robustness.
+
 ## 1.4
 
 ### Added
