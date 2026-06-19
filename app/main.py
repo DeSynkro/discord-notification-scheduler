@@ -1,3 +1,4 @@
+import json
 import re
 from datetime import datetime
 from contextlib import asynccontextmanager
@@ -5,7 +6,7 @@ from typing import Annotated
 
 from pathlib import Path
 
-from fastapi import FastAPI, Form, Request, Response
+from fastapi import FastAPI, Form, Request, Response, UploadFile
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -48,8 +49,6 @@ def _to_12h(time_24: str) -> str:
 
 
 def _alarm_card_html(alarm: dict, webhooks: list[dict]) -> str:
-    from datetime import datetime
-
     hook = next((w for w in webhooks if w["name"] == alarm["webhook_name"]), None)
     hook_label = hook["name"] if hook else f"<em>{alarm['webhook_name']}</em>"
 
@@ -110,16 +109,186 @@ def _safe_id(name: str) -> str:
     return re.sub(r"[^a-zA-Z0-9\-_]", "-", name)
 
 
+def _webhook_modal_form(wh: dict | None = None) -> str:
+    is_edit = wh is not None
+    action = f'/webhooks/{wh["name"]}' if is_edit else '/webhooks'
+    method = 'hx-put' if is_edit else 'hx-post'
+    title = 'Edit Webhook' if is_edit else 'New Webhook'
+    name_val = wh["name"] if wh else ""
+    url_val = wh["url"] if wh else ""
+
+    return f"""<div id="modal-overlay" class="modal-overlay" onclick="closeModal(event)">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3>{title}</h3>
+      <button class="btn-icon" onclick="closeModal()">&times;</button>
+    </div>
+    <form {method}="{action}" hx-target="#webhook-list" hx-swap="innerHTML">
+      <label>Name</label>
+      <input type="text" name="new_name" value="{name_val}" required maxlength="100">
+
+      <label>Webhook URL</label>
+      <input type="url" name="url" value="{url_val}" placeholder="https://discord.com/api/webhooks/..." required>
+
+      <div class="modal-actions">
+        <button type="button" class="btn" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>"""
+
+
 def _webhook_chip_html(wh: dict) -> str:
     name = wh["name"]
     safe = _safe_id(name)
     delete_url = f'/webhooks/{name}'
     test_url = f'/webhooks/{name}/test'
+    edit_url = f'/webhooks/{name}/edit'
     return f"""<div class="webhook-chip" id="wh-{safe}">
   <span class="wh-name">{name}</span>
+  <button class="btn-icon btn-icon-xs" hx-get="{edit_url}" hx-target="#modal-area" hx-swap="innerHTML" title="Edit">&#x270e;</button>
   <button class="btn-icon btn-icon-danger btn-icon-xs" hx-delete="{delete_url}" hx-target="#wh-{safe}" hx-swap="outerHTML" hx-confirm="Delete webhook '{name}'?" title="Delete">&times;</button>
   <button class="btn-icon btn-icon-xs" hx-post="{test_url}" hx-swap="none" title="Test webhook">&#x25b6;</button>
 </div>"""
+
+
+@app.get("/export")
+async def export_data():
+    webhooks = read_json("webhooks")
+    alarms = read_json("alarms")
+    payload = {
+        "version": 1,
+        "exported_at": datetime.now(ZoneInfo("UTC")).isoformat(),
+        "webhooks": webhooks,
+        "alarms": alarms,
+    }
+    return Response(
+        content=json.dumps(payload, indent=2),
+        media_type="application/json",
+        headers={"Content-Disposition": 'attachment; filename="discord-scheduler-backup.json"'},
+    )
+
+
+IMPORT_FORM = """<div id="modal-overlay" class="modal-overlay" onclick="closeModal(event)">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Import</h3>
+      <button class="btn-icon" onclick="closeModal()">&times;</button>
+    </div>
+    <form hx-encoding="multipart/form-data" hx-post="/import" hx-swap="none" id="import-form">
+      <label>Backup file (.json)</label>
+      <input type="file" name="file" accept=".json,application/json" required class="file-input">
+
+      <label>Mode</label>
+      <div class="import-mode-row">
+        <label class="radio-label"><input type="radio" name="mode" value="merge" checked> Merge (add to existing data)</label>
+        <label class="radio-label"><input type="radio" name="mode" value="replace"> Replace (clear all existing data)</label>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Import</button>
+      </div>
+    </form>
+  </div>
+</div>"""
+
+
+@app.get("/import/form", response_class=HTMLResponse)
+async def import_form():
+    return IMPORT_FORM
+
+
+@app.post("/import")
+async def import_data(file: UploadFile, mode: str = Form("merge")):
+    try:
+        raw = await file.read()
+        data = json.loads(raw)
+    except Exception:
+        return Response("", status_code=400, headers={"X-Toast-Message": "Invalid JSON file", "X-Toast-Type": "err"})
+
+    if not isinstance(data, dict) or "webhooks" not in data or "alarms" not in data:
+        return Response("", status_code=400, headers={"X-Toast-Message": "Missing 'webhooks' or 'alarms' in file", "X-Toast-Type": "err"})
+
+    imported_webhooks = []
+    for i, item in enumerate(data["webhooks"]):
+        try:
+            wh = Webhook(**item)
+            imported_webhooks.append(wh.model_dump())
+        except Exception:
+            pass
+
+    imported_alarms = []
+    for i, item in enumerate(data["alarms"]):
+        try:
+            alarm = Alarm(**item)
+            imported_alarms.append(alarm.model_dump())
+        except Exception:
+            pass
+
+    if not imported_webhooks and not imported_alarms:
+        return Response("", status_code=400, headers={"X-Toast-Message": "No valid webhooks or alarms found in file", "X-Toast-Type": "err"})
+
+    total_wh = len(data["webhooks"])
+    total_al = len(data["alarms"])
+    valid_wh = len(imported_webhooks)
+    valid_al = len(imported_alarms)
+
+    if mode == "replace":
+        write_json("webhooks", imported_webhooks)
+        write_json("alarms", imported_alarms)
+        parts = []
+        if total_wh != valid_wh:
+            parts.append(f"{valid_wh}/{total_wh} webhooks (skipped {total_wh - valid_wh} invalid)")
+        else:
+            parts.append(f"{valid_wh} webhooks")
+        if total_al != valid_al:
+            parts.append(f"{valid_al}/{total_al} alarms (skipped {total_al - valid_al} invalid)")
+        else:
+            parts.append(f"{valid_al} alarms")
+        msg = "Import complete: replaced " + ", ".join(parts)
+    else:
+        existing_wh = read_json("webhooks")
+        existing_al = read_json("alarms")
+        existing_wh_names = {w["name"] for w in existing_wh}
+        existing_al_ids = {a["id"] for a in existing_al}
+
+        wh_skipped = 0
+        for wh in imported_webhooks:
+            if wh["name"] in existing_wh_names:
+                wh_skipped += 1
+            else:
+                existing_wh.append(wh)
+                existing_wh_names.add(wh["name"])
+
+        al_skipped = 0
+        for alarm in imported_alarms:
+            if alarm["id"] in existing_al_ids:
+                al_skipped += 1
+            else:
+                existing_al.append(alarm)
+                existing_al_ids.add(alarm["id"])
+
+        write_json("webhooks", existing_wh)
+        write_json("alarms", existing_al)
+
+        parts = []
+        wh_imported = valid_wh - wh_skipped
+        al_imported = valid_al - al_skipped
+        if wh_imported > 0:
+            parts.append(f"{wh_imported} webhook(s)")
+        if al_imported > 0:
+            parts.append(f"{al_imported} alarm(s)")
+        if wh_skipped:
+            parts.append(f"{wh_skipped} webhook(s) skipped (duplicate names)")
+        if al_skipped:
+            parts.append(f"{al_skipped} alarm(s) skipped (duplicate IDs)")
+        if not parts:
+            parts.append("nothing new")
+        msg = "Import complete: merged " + ", ".join(parts)
+
+    return Response("", headers={"X-Toast-Message": msg, "X-Toast-Type": "ok", "HX-Trigger": "refresh-lists"})
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -134,16 +303,7 @@ async def dashboard(request: Request):
         "days": DAYS_OF_WEEK,
         "_alarm_card": _alarm_card_html,
         "_webhook_chip": _webhook_chip_html,
-        "_webhook_form": WEBHOOK_FORM,
     })
-
-
-WEBHOOK_FORM = """<form id="wh-form" hx-post="/webhooks" hx-target="#webhook-list" hx-swap="innerHTML">
-  <input type="text" name="name" placeholder="Name" required>
-  <input type="url" name="url" placeholder="https://discord.com/api/webhooks/..." required>
-  <button type="submit" class="btn btn-primary btn-sm">Save</button>
-  <button type="button" class="btn btn-sm" onclick="this.closest('.wh-form-area').classList.add('hidden')">Cancel</button>
-</form>"""
 
 
 @app.get("/webhooks", response_class=HTMLResponse)
@@ -153,10 +313,24 @@ async def list_webhooks():
     return "".join(parts) or '<span class="empty">No webhooks yet</span>'
 
 
+@app.get("/webhooks/new", response_class=HTMLResponse)
+async def new_webhook_form():
+    return _webhook_modal_form()
+
+
+@app.get("/webhooks/{name}/edit", response_class=HTMLResponse)
+async def edit_webhook_form(name: str):
+    webhooks = read_json("webhooks")
+    wh = next((w for w in webhooks if w["name"] == name), None)
+    if not wh:
+        return '<div id="modal-area"></div>'
+    return _webhook_modal_form(wh)
+
+
 @app.post("/webhooks", response_class=HTMLResponse)
-async def create_webhook(name: Annotated[str, Form()], url: Annotated[str, Form()]):
+async def create_webhook(new_name: Annotated[str, Form()], url: Annotated[str, Form()]):
     try:
-        wh = Webhook(name=name.strip(), url=url.strip())
+        wh = Webhook(name=new_name.strip(), url=url.strip())
     except Exception as e:
         error = str(e)
         if "url" in str(e).lower():
@@ -164,7 +338,7 @@ async def create_webhook(name: Annotated[str, Form()], url: Annotated[str, Form(
         return HTMLResponse(
             content=await list_webhooks(),
             status_code=400,
-            headers={"X-Toast-Message": error},
+            headers={"X-Toast-Message": error, "X-Toast-Type": "err"},
         )
 
     webhooks = read_json("webhooks")
@@ -172,13 +346,70 @@ async def create_webhook(name: Annotated[str, Form()], url: Annotated[str, Form(
         return HTMLResponse(
             content=await list_webhooks(),
             status_code=409,
-            headers={"X-Toast-Message": f'Webhook "{wh.name}" already exists'},
+            headers={"X-Toast-Message": f'Webhook "{wh.name}" already exists', "X-Toast-Type": "err"},
         )
 
     webhooks.append(wh.model_dump())
     write_json("webhooks", webhooks)
 
-    return await list_webhooks()
+    parts = [_webhook_chip_html(w) for w in read_json("webhooks")]
+    content = f"""{''.join(parts)}
+<div id="modal-area" hx-swap-oob="true"></div>"""
+    return HTMLResponse(content, headers={"X-Toast-Message": f'Webhook "{wh.name}" added', "X-Toast-Type": "ok"})
+
+
+@app.put("/webhooks/{name}", response_class=HTMLResponse)
+async def update_webhook(
+    name: str,
+    new_name: Annotated[str, Form()],
+    url: Annotated[str, Form()],
+):
+    try:
+        wh = Webhook(name=new_name.strip(), url=url.strip())
+    except Exception as e:
+        error = str(e)
+        if "url" in str(e).lower():
+            error = "Must be a valid Discord webhook URL"
+        parts = [_webhook_chip_html(w) for w in read_json("webhooks")]
+        return HTMLResponse("".join(parts), status_code=400, headers={"X-Toast-Message": error, "X-Toast-Type": "err"})
+
+    webhooks = read_json("webhooks")
+    idx = next((i for i, w in enumerate(webhooks) if w["name"] == name), None)
+    if idx is None:
+        parts = [_webhook_chip_html(w) for w in webhooks]
+        return HTMLResponse("".join(parts), status_code=404, headers={"X-Toast-Message": f'Webhook "{name}" not found', "X-Toast-Type": "err"})
+
+    if new_name.strip() != name and any(w["name"] == new_name.strip() for w in webhooks):
+        parts = [_webhook_chip_html(w) for w in webhooks]
+        return HTMLResponse("".join(parts), status_code=409, headers={"X-Toast-Message": f'Webhook "{new_name.strip()}" already exists', "X-Toast-Type": "err"})
+
+    old_name = webhooks[idx]["name"]
+    webhooks[idx] = wh.model_dump()
+    write_json("webhooks", webhooks)
+
+    if old_name != wh.name:
+        alarms = read_json("alarms")
+        for a in alarms:
+            if a["webhook_name"] == old_name:
+                a["webhook_name"] = wh.name
+        write_json("alarms", alarms)
+
+    parts = [_webhook_chip_html(w) for w in read_json("webhooks")]
+    content = f"""{''.join(parts)}
+<div id="modal-area" hx-swap-oob="true"></div>"""
+    return HTMLResponse(content, headers={"X-Toast-Message": f'Webhook "{wh.name}" saved', "X-Toast-Type": "ok"})
+
+
+@app.delete("/webhooks", response_class=HTMLResponse)
+async def delete_all_webhooks():
+    webhooks = read_json("webhooks")
+    count = len(webhooks)
+    write_json("webhooks", [])
+    alarms = read_json("alarms")
+    for a in alarms:
+        a["webhook_name"] = "(deleted)"
+    write_json("alarms", alarms)
+    return Response("", headers={"X-Toast-Message": f"Deleted {count} webhook(s)", "X-Toast-Type": "ok", "HX-Trigger": "refresh-lists"})
 
 
 @app.delete("/webhooks/{name}", response_class=HTMLResponse)
@@ -186,7 +417,6 @@ async def delete_webhook(name: str):
     webhooks = read_json("webhooks")
     webhooks = [w for w in webhooks if w["name"] != name]
     write_json("webhooks", webhooks)
-    # Also remove any alarms using this webhook
     alarms = read_json("alarms")
     changed = False
     for a in alarms:
@@ -195,7 +425,7 @@ async def delete_webhook(name: str):
             changed = True
     if changed:
         write_json("alarms", alarms)
-    return ""
+    return Response("", headers={"X-Toast-Message": f'Webhook "{name}" deleted', "X-Toast-Type": "ok", "HX-Trigger": "refresh-lists"})
 
 
 @app.post("/webhooks/{name}/test")
@@ -208,7 +438,7 @@ async def test_webhook(name: str):
     test_alarm = Alarm(
         name="Test",
         webhook_name=name,
-        message="Test message from Discord Notification Scheduler :wave:",
+        message=f"Test message from {name} via Discord Notification Scheduler :wave:",
         time="00:00",
         days=[],
     )
@@ -233,7 +463,7 @@ def _form_html(alarm: dict | None = None) -> str:
         for w in webhooks
     )
     tz_list = "".join(
-        f'<option value="{tz}">' for tz in TIMEZONES
+        f'<option value="{tz}"></option>' for tz in TIMEZONES
     )
     tz_val = alarm["timezone"] if alarm else "UTC"
     day_checks = "".join(
@@ -355,7 +585,9 @@ async def create_alarm(
             embed=embed,
         )
     except Exception as e:
-        return f'<div class="toast toast-err">{str(e)}</div>'
+        webhooks = read_json("webhooks")
+        parts = [_alarm_card_html(a, webhooks) for a in read_json("alarms")]
+        return HTMLResponse("".join(parts), status_code=400, headers={"X-Toast-Message": str(e), "X-Toast-Type": "err"})
 
     alarms = read_json("alarms")
     alarms.append(alarm.model_dump())
@@ -363,8 +595,9 @@ async def create_alarm(
 
     webhooks = read_json("webhooks")
     parts = [_alarm_card_html(a, webhooks) for a in alarms]
-    return f"""{''.join(parts)}
+    content = f"""{''.join(parts)}
 <div id="modal-area" hx-swap-oob="true"></div>"""
+    return HTMLResponse(content, headers={"X-Toast-Message": f'Alarm "{alarm.name}" created', "X-Toast-Type": "ok"})
 
 
 @app.put("/alarms/{alarm_id}", response_class=HTMLResponse)
@@ -383,7 +616,8 @@ async def update_alarm(
     alarms = read_json("alarms")
     idx = next((i for i, a in enumerate(alarms) if a["id"] == alarm_id), None)
     if idx is None:
-        return '<div class="toast toast-err">Alarm not found</div>'
+        parts = [_alarm_card_html(a, read_json("webhooks")) for a in alarms]
+        return HTMLResponse("".join(parts), status_code=404, headers={"X-Toast-Message": "Alarm not found", "X-Toast-Type": "err"})
 
     try:
         embed = None
@@ -404,15 +638,26 @@ async def update_alarm(
             last_error=alarms[idx].get("last_error"),
         )
     except Exception as e:
-        return f'<div class="toast toast-err">{str(e)}</div>'
+        webhooks = read_json("webhooks")
+        parts = [_alarm_card_html(a, webhooks) for a in alarms]
+        return HTMLResponse("".join(parts), status_code=400, headers={"X-Toast-Message": str(e), "X-Toast-Type": "err"})
 
     alarms[idx] = alarm.model_dump()
     write_json("alarms", alarms)
 
     webhooks = read_json("webhooks")
     parts = [_alarm_card_html(a, webhooks) for a in alarms]
-    return f"""{''.join(parts)}
+    content = f"""{''.join(parts)}
 <div id="modal-area" hx-swap-oob="true"></div>"""
+    return HTMLResponse(content, headers={"X-Toast-Message": f'Alarm "{alarm.name}" saved', "X-Toast-Type": "ok"})
+
+
+@app.delete("/alarms", response_class=HTMLResponse)
+async def delete_all_alarms():
+    alarms = read_json("alarms")
+    count = len(alarms)
+    write_json("alarms", [])
+    return Response("", headers={"X-Toast-Message": f"Deleted {count} alarm(s)", "X-Toast-Type": "ok"})
 
 
 @app.delete("/alarms/{alarm_id}", response_class=HTMLResponse)
@@ -420,7 +665,7 @@ async def delete_alarm(alarm_id: str):
     alarms = read_json("alarms")
     alarms = [a for a in alarms if a["id"] != alarm_id]
     write_json("alarms", alarms)
-    return ""
+    return Response("", headers={"X-Toast-Message": "Alarm deleted", "X-Toast-Type": "ok"})
 
 
 @app.post("/alarms/{alarm_id}/toggle", response_class=HTMLResponse)
@@ -448,10 +693,10 @@ async def test_alarm(alarm_id: str):
         return HTMLResponse("", headers={"X-Toast-Message": f"Invalid alarm data: {e}", "X-Toast-Type": "err"})
 
     success, err = await send_webhook(alarm)
+    webhooks = read_json("webhooks")
+    card = _alarm_card_html(raw, webhooks)
     if success:
         raw["last_fired"] = datetime.now(ZoneInfo("UTC")).isoformat()
         write_json("alarms", alarms)
-        webhooks = read_json("webhooks")
-        card = _alarm_card_html(raw, webhooks)
         return HTMLResponse(card, headers={"X-Toast-Message": "Test message sent!", "X-Toast-Type": "ok"})
-    return HTMLResponse("", headers={"X-Toast-Message": f"Test failed: {err}", "X-Toast-Type": "err"})
+    return HTMLResponse(card, headers={"X-Toast-Message": f"Test failed: {err}", "X-Toast-Type": "err"})

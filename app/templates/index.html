@@ -4,19 +4,29 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Discord Notification Scheduler</title>
-  <link rel="stylesheet" href="/static/style.css?v=1.1">
-  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-  </style>
+  <link rel="icon" type="image/x-icon" href="/static/favicon/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/static/favicon/apple-touch-icon.png">
+  <link rel="stylesheet" href="/static/style.css?v=1.3">
+  <script src="/static/htmx.min.js"></script>
 </head>
 <body>
   <div id="toast-area" class="toast-container"></div>
+  <noscript>
+    <div style="background:#f85149;color:#fff;text-align:center;padding:0.6rem 1rem;font-size:0.85rem;font-weight:500;">
+      JavaScript is required for this app to function. Buttons, toggles, and forms will not work without it.
+    </div>
+  </noscript>
 
   <header class="header">
     <div class="header-inner">
-      <h1>&#x1f4e2; Discord Notification Scheduler</h1>
+      <h1><img src="/static/favicon/favicon-32x32.png" class="header-logo" alt=""> Discord Notification Scheduler</h1>
       <p class="subtitle">Schedule messages to Discord webhooks on your terms</p>
+      <div class="toolbar">
+        <a href="/export" class="btn btn-sm" download onclick="showToast('Export complete', 'ok')">&#x2913; Export</a>
+        <button class="btn btn-sm" hx-get="/import/form" hx-target="#modal-area" hx-swap="innerHTML">&#x2911; Import</button>
+      </div>
     </div>
   </header>
 
@@ -26,17 +36,18 @@
     <section class="section">
       <div class="section-header">
         <h2>&#x1f517; Webhooks</h2>
-        <button class="btn btn-primary btn-sm" onclick="document.getElementById('wh-form-area').classList.toggle('hidden')">+ Add</button>
+        <button class="btn btn-primary btn-sm" hx-get="/webhooks/new" hx-target="#modal-area" hx-swap="innerHTML">+ Add</button>
       </div>
-      <div id="wh-form-area" class="wh-form-area hidden">
-        {{ _webhook_form | safe }}
-      </div>
-      <div id="webhook-list" class="webhook-list">
+      <div id="webhook-list" class="webhook-list" hx-get="/webhooks" hx-trigger="refresh-lists from:body" hx-swap="innerHTML">
         {% for wh in webhooks %}
           {{ _webhook_chip(wh) | safe }}
         {% else %}
           <span class="empty">No webhooks yet</span>
         {% endfor %}
+      </div>
+      <div class="delete-all">
+        <a hx-delete="/webhooks" hx-target="#webhook-list" hx-swap="innerHTML"
+           hx-confirm="Delete all webhooks? Alarms using them will be marked as deleted. This cannot be undone.">Delete all webhooks</a>
       </div>
     </section>
 
@@ -46,16 +57,24 @@
         <h2>&#x23f0; Alarms</h2>
         <button class="btn btn-primary" hx-get="/alarms/new" hx-target="#modal-area" hx-swap="innerHTML">+ New Alarm</button>
       </div>
-      <div id="alarm-list" class="alarm-list" hx-get="/alarms" hx-trigger="every 60s" hx-swap="innerHTML">
+      <div id="alarm-list" class="alarm-list" hx-get="/alarms" hx-trigger="every 60s, refresh-lists from:body" hx-swap="innerHTML">
         {% for alarm in alarms %}
           {{ _alarm_card(alarm, webhooks) | safe }}
         {% else %}
           <span class="empty">No alarms yet</span>
         {% endfor %}
       </div>
+      <div class="delete-all">
+        <a hx-delete="/alarms" hx-target="#alarm-list" hx-swap="innerHTML"
+           hx-confirm="Delete all alarms? This cannot be undone.">Delete all alarms</a>
+      </div>
     </section>
 
   </main>
+
+  <footer class="footer">
+    BUILT WITH <span class="heart">&hearts;</span> BY <a href="https://desynkro.com" target="_blank">DESYNKRO</a>
+  </footer>
 
   <!-- Modal container -->
   <div id="modal-area"></div>
@@ -106,7 +125,14 @@
       preview.style.display = 'block';
     });
 
+    var _lastToastMsg = '';
+    var _lastToastTime = 0;
+
     function showToast(msg, type) {
+      var now = Date.now();
+      if (msg === _lastToastMsg && now - _lastToastTime < 2000) return;
+      _lastToastMsg = msg;
+      _lastToastTime = now;
       var area = document.getElementById('toast-area');
       var el = document.createElement('div');
       el.className = 'toast toast-' + (type || 'ok');
@@ -138,17 +164,12 @@
     obs.observe(document.getElementById('toast-area'), { childList: true });
 
     document.body.addEventListener('htmx:afterRequest', function(e) {
+      if (e.detail.successful && e.detail.elt && e.detail.elt.id === 'import-form') {
+        closeModal();
+      }
       var msg = e.detail.xhr.getResponseHeader('X-Toast-Message');
       if (msg) {
         showToast(msg, e.detail.xhr.getResponseHeader('X-Toast-Type') || 'ok');
-        return;
-      }
-      if (e.detail.elt && e.detail.elt.id === 'wh-form') {
-        if (e.detail.successful) {
-          showToast('Webhook added', 'ok');
-          e.detail.elt.reset();
-          e.detail.elt.closest('.wh-form-area').classList.add('hidden');
-        }
       }
     });
   </script>

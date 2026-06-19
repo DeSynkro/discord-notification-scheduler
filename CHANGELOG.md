@@ -1,5 +1,70 @@
 # Changelog
 
+## 1.3
+
+### Added
+- Favicon set in `app/static/favicon/` (favicon.ico, PNG variants, apple-touch-icon)
+- Export button, downloads all webhooks + alarms as a single JSON backup file
+- Import modal, upload a JSON backup file with merge or replace mode
+- Import validates every webhook/alarm through Pydantic schemas, skips invalid
+  items; merge mode skips duplicate webhook names and alarm IDs
+- Both lists auto-refresh after import via `HX-Trigger: refresh-lists`
+- Toolbar in header with Export/Import buttons
+- Webhook edit: pencil icon on each chip, modal form, rename propagates to all
+  alarm references
+- "Delete all" links at the bottom of each section, guarded by `hx-confirm`,
+  returning count toasts
+- DELETE `/webhooks` bulk endpoint (marks alarms as "(deleted)", refreshes
+  both lists) and DELETE `/alarms` bulk endpoint
+- Footer with `BUILT WITH ♥ BY DESYNKRO`, heartbeat animation on the heart
+- Header logo: favicon replaces unicode emoji next to title (28px)
+- Sticky footer pinned to bottom of viewport via flexbox column layout
+- `X-Toast-Type` header on all error responses for consistent toast styling
+- Dedup guard in `showToast()` prevents duplicate toasts within 2 seconds
+- `<noscript>` banner at the top of the page, visible only when JavaScript
+  is disabled, explaining that the app requires JS
+
+### Changed
+- Webhook form moved from inline `.hidden` toggle to modal overlay, matching
+  the alarm pattern consistently
+- Webhook GET routes (`/webhooks/new`, `/webhooks/{name}/edit`) serve modal
+  forms; PUT `/webhooks/{name}` saves edits
+- Renaming a webhook via edit updates all alarm `webhook_name` references in
+  storage
+- Error responses for `create_alarm`, `update_alarm`, `create_webhook`,
+  `update_webhook`, `delete_webhook`, `delete_alarm` now return proper HTTP
+  status codes with `X-Toast-Message` and `X-Toast-Type` headers (no more OOB
+  error HTML fragments)
+- Test message includes webhook name: `"Test message from {name} via Discord
+  Notification Scheduler :wave:"`
+- Test failure now returns the existing alarm card HTML instead of empty string
+  (card no longer disappears from page)
+- Delete webhook returns `HX-Trigger: refresh-lists` so alarm cards immediately
+  show "(deleted)" for affected webhooks
+- All webhook and alarm create/update operations return `X-Toast-Message`
+  success toasts and OOB modal close swap
+- Alarm list trigger expanded from `every 60s` to `every 60s, refresh-lists
+  from:body` so it refreshes on import and webhook delete
+- CSS cache-bust bumped to `v1.3`
+- Self-hosted HTMX (`app/static/htmx.min.js`) so no external JavaScript
+  requests are made on page load
+- Self-hosted Inter variable font (7 woff2 unicode-range subsets in
+  `app/static/fonts/`), removing the Google Fonts dependency entirely
+
+### Fixed
+- Zero external CDN requests on page load; a previous oversight left HTMX and
+  Inter loading from third-party servers (unpkg and Google Fonts). Both are now
+  self-hosted to fully align with the project's privacy commitment. No data
+  leaves your network beyond the webhook POST to Discord. Apologies for the
+  oversight.
+- Removed unused `import os` from `storage.py`
+- Removed unused `from datetime import datetime` from `models.py`
+- Removed redundant `from datetime import datetime` inside `_alarm_card_html`
+- Timezone `<option>` elements in alarm form now have proper `</option>` close
+  tags
+- Removed dead `.wh-form-area` CSS selectors for the old inline webhook form
+  (converted to modal in this release)
+
 ## 1.2
 
 ### Added

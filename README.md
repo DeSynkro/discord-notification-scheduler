@@ -62,7 +62,8 @@ Just Docker and a JSON file you can copy with one command.
 -   **SSRF-safe** - webhook URLs validated against Discords exact pattern;
     no arbitrary outbound requests
 -   **Minimal outbound traffic** - the only data leaving your machine is the
-    message you scheduled, delivered to Discord over HTTPS
+    message you scheduled, delivered to Discord over HTTPS; no CDN, no font
+    hosts, no third-party servers
 -   One `docker compose up` and done
 -   Dark-themed web UI using HTMX and FastAPI
 -   Plain text and rich embed messages (title, optional color picker)
@@ -82,8 +83,9 @@ Just Docker and a JSON file you can copy with one command.
 | | No user accounts, emails, or IPs |
 | | No cookies, no fingerprinting |
 
-The only network request your server will ever make is the webhook POST to
-Discord. Nothing else.
+The only network request leaving your network is the webhook POST to Discord.
+HTMX, fonts, and all other assets are served directly from the app itself,
+   with no CDN, analytics, or third-party servers contacted on page load.
 
 ## Tech Stack
 
