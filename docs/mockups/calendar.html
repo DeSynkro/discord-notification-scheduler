@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mockup: Calendar Alerts</title>
+  <link rel="stylesheet" href="../../app/static/style.css">
+  <style>
+    /* Mockup-only font fallback so Inter loads from a file:// path */
+    @font-face {
+      font-family: 'Inter';
+      font-style: normal;
+      font-weight: 100 900;
+      font-display: swap;
+      src: url('../../app/static/fonts/Inter-latin.woff2') format('woff2');
+    }
+
+    .mockup-banner {
+      background: rgba(88, 101, 242, 0.15);
+      border-bottom: 1px solid rgba(88, 101, 242, 0.35);
+      color: #c7d2fe;
+      text-align: center;
+      padding: 0.4rem 1rem;
+      font-size: 0.72rem;
+      letter-spacing: 0.02em;
+    }
+
+    /* Calendar */
+    .cal-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .cal-month {
+      min-width: 9.5rem;
+      text-align: center;
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: var(--text-bright);
+    }
+
+    .cal-legend {
+      display: flex;
+      gap: 1rem;
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      margin-bottom: 0.6rem;
+      padding-left: 0.15rem;
+    }
+
+    .cal-legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .cal-legend .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .cal-legend .dot.weekly { background: var(--primary); }
+    .cal-legend .dot.dated { background: var(--success); }
+
+    .calendar {
+      background: rgba(22, 27, 34, 0.75);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(48, 54, 61, 0.6);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .cal-weekdays {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      background: rgba(13, 17, 23, 0.6);
+      border-bottom: 1px solid rgba(48, 54, 61, 0.6);
+    }
+
+    .cal-weekdays span {
+      padding: 0.5rem 0.4rem;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-dim);
+      text-align: center;
+    }
+
+    .cal-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+    }
+
+    .cal-day {
+      position: relative;
+      min-height: 96px;
+      padding: 0.35rem 0.4rem 0.45rem;
+      border-right: 1px solid rgba(48, 54, 61, 0.45);
+      border-bottom: 1px solid rgba(48, 54, 61, 0.45);
+      transition: background var(--transition);
+    }
+
+    .cal-day:nth-child(7n) { border-right: none; }
+    .cal-day:nth-last-child(-n+7) { border-bottom: none; }
+    .cal-day:hover { background: rgba(88, 101, 242, 0.07); }
+    .cal-day.out { opacity: 0.38; }
+
+    .cal-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 20px;
+      height: 20px;
+      font-size: 0.72rem;
+      font-weight: 500;
+      color: var(--text-dim);
+      border-radius: 50%;
+    }
+
+    .cal-day.today .cal-num {
+      background: var(--primary);
+      color: #fff;
+      font-weight: 700;
+      box-shadow: 0 0 10px var(--primary-glow);
+    }
+
+    .cal-events {
+      display: flex;
+      flex-direction: column;
+      gap: 0.18rem;
+      margin-top: 0.2rem;
+    }
+
+    .cal-event {
+      display: block;
+      font-size: 0.66rem;
+      line-height: 1.35;
+      padding: 0.1rem 0.3rem;
+      border-radius: 4px;
+      border-left: 2px solid;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      cursor: pointer;
+      transition: filter var(--transition);
+    }
+
+    .cal-event:hover { filter: brightness(1.3); }
+
+    .cal-event.weekly {
+      background: rgba(88, 101, 242, 0.16);
+      border-color: var(--primary);
+      color: #a5b4fc;
+    }
+
+    .cal-event.dated {
+      background: rgba(63, 185, 80, 0.13);
+      border-color: var(--success);
+      color: #86efac;
+    }
+
+    .cal-add {
+      position: absolute;
+      top: 0.25rem;
+      right: 0.25rem;
+      width: 18px;
+      height: 18px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text-dim);
+      border-radius: 4px;
+      font-size: 0.7rem;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity var(--transition), color var(--transition), border-color var(--transition);
+    }
+
+    .cal-day:hover .cal-add { opacity: 1; }
+    .cal-add:hover { color: var(--primary); border-color: var(--primary); }
+
+    .cal-hint {
+      margin-top: 0.6rem;
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      padding-left: 0.15rem;
+    }
+
+    .cal-day.selected {
+      background: rgba(88, 101, 242, 0.10);
+      box-shadow: inset 0 0 0 1px rgba(88, 101, 242, 0.5);
+    }
+
+    /* View bubbles */
+    .view-tabs {
+      display: flex;
+      gap: 0.3rem;
+      width: fit-content;
+      margin-bottom: 1.6rem;
+      padding: 0.3rem;
+      background: rgba(22, 27, 34, 0.65);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(48, 54, 61, 0.5);
+      border-radius: 999px;
+    }
+
+    .view-tab {
+      padding: 0.4rem 1rem;
+      border: 1px solid transparent;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--text-dim);
+      font-family: inherit;
+      font-size: 0.82rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+
+    .view-tab:hover {
+      color: var(--text);
+      background: rgba(88, 101, 242, 0.08);
+    }
+
+    .view-tab.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+      box-shadow: 0 0 10px var(--primary-glow);
+    }
+
+    /* Selected day panel */
+    .day-panel {
+      margin-top: 0.9rem;
+      background: rgba(22, 27, 34, 0.75);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(48, 54, 61, 0.6);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .day-panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.7rem 0.9rem;
+      border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+    }
+
+    .day-panel-head strong {
+      font-size: 0.88rem;
+      color: var(--text-bright);
+    }
+
+    .day-panel-body {
+      padding: 0.3rem 0.9rem;
+    }
+
+    .day-event-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.5rem 0;
+      border-top: 1px solid rgba(48, 54, 61, 0.35);
+    }
+
+    .day-event-row:first-child { border-top: none; }
+
+    .day-event-row .cal-event {
+      flex-shrink: 0;
+      max-width: 11rem;
+    }
+
+    .day-event-meta {
+      flex: 1;
+      min-width: 0;
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .day-event-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      flex-shrink: 0;
+    }
+
+    /* Next fire chip */
+    .badge-next {
+      background: rgba(88, 101, 242, 0.12);
+      color: #a5b4fc;
+      border: 1px solid rgba(88, 101, 242, 0.3);
+    }
+
+    /* Log */
+    .log-list {
+      background: rgba(22, 27, 34, 0.75);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(48, 54, 61, 0.6);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .log-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.55rem 0.9rem;
+      border-top: 1px solid rgba(48, 54, 61, 0.45);
+    }
+
+    .log-row:first-child { border-top: none; }
+
+    .log-time {
+      width: 8.5rem;
+      flex-shrink: 0;
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .log-main { flex: 1; min-width: 0; }
+
+    .log-main strong {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-bright);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .log-meta {
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .log-kind {
+      display: inline-block;
+      font-size: 0.62rem;
+      font-weight: 600;
+      padding: 0.02rem 0.35rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      margin-right: 0.35rem;
+      vertical-align: 1px;
+    }
+
+    .log-kind.calendar {
+      color: #86efac;
+      border-color: rgba(63, 185, 80, 0.4);
+      background: rgba(63, 185, 80, 0.1);
+    }
+
+    .log-kind.weekly {
+      color: #a5b4fc;
+      border-color: rgba(88, 101, 242, 0.4);
+      background: rgba(88, 101, 242, 0.1);
+    }
+
+    .log-kind.test { color: var(--text-dim); }
+
+    .log-clear {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      text-decoration: none;
+      cursor: pointer;
+      opacity: 0.5;
+      transition: opacity var(--transition), color var(--transition);
+    }
+
+    .log-clear:hover { opacity: 1; color: var(--danger); }
+
+    /* Date input styling to match the other fields */
+    .modal-content input[type="date"] {
+      width: 100%;
+      padding: 0.5rem 0.65rem;
+      font-size: 0.85rem;
+      font-family: inherit;
+      color: var(--text);
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      outline: none;
+      transition: border-color var(--transition);
+    }
+
+    .modal-content input[type="date"]:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px var(--primary-glow);
+    }
+
+    .field-row {
+      display: flex;
+      gap: 0.75rem;
+    }
+
+    .field-row > div { flex: 1; }
+
+    .form-section-label {
+      margin-top: 1.1rem !important;
+      margin-bottom: 0.4rem !important;
+      padding-top: 0.85rem;
+      border-top: 1px solid var(--border);
+      color: var(--text-bright) !important;
+      font-size: 0.78rem !important;
+      font-weight: 600 !important;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+
+    @media (max-width: 680px) {
+      .cal-day { min-height: 62px; }
+      .cal-event { font-size: 0.6rem; padding: 0.05rem 0.2rem; }
+      .cal-month { min-width: 7rem; font-size: 0.8rem; }
+      .log-time { width: 5.5rem; }
+      .field-row { flex-direction: column; gap: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="mockup-banner">Design preview: Calendar Alerts. Static mockup, not the live app.</div>
+
+  <header class="header">
+    <div class="header-inner">
+      <h1><img src="../../app/static/favicon/favicon-32x32.png" class="header-logo" alt=""> Discord Notification Scheduler</h1>
+      <p class="subtitle">Schedule messages to Discord webhooks on your terms</p>
+      <div class="toolbar">
+        <a href="#" class="btn btn-sm">&#x2913; Export</a>
+        <button class="btn btn-sm">&#x2912; Import</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- Webhooks -->
+    <section class="section">
+      <div class="section-header">
+        <h2>&#x1f517; Webhooks</h2>
+        <div style="display:flex;gap:0.5rem;align-items:center">
+          <button class="btn-icon btn-icon-xs" title="How to set up a webhook">&#x24d8;</button>
+          <button class="btn btn-primary btn-sm">+ Add</button>
+        </div>
+      </div>
+      <div class="webhook-list">
+        <div class="webhook-chip">
+          <span class="wh-name">general</span>
+          <button class="btn-icon btn-icon-xs" title="Edit">&#x270e;</button>
+          <button class="btn-icon btn-icon-danger btn-icon-xs" title="Delete">&times;</button>
+          <button class="btn-icon btn-icon-xs" title="Test webhook">&#x25b6;</button>
+        </div>
+        <div class="webhook-chip">
+          <span class="wh-name">announcements</span>
+          <button class="btn-icon btn-icon-xs" title="Edit">&#x270e;</button>
+          <button class="btn-icon btn-icon-danger btn-icon-xs" title="Delete">&times;</button>
+          <button class="btn-icon btn-icon-xs" title="Test webhook">&#x25b6;</button>
+        </div>
+        <div class="webhook-chip">
+          <span class="wh-name">ops</span>
+          <button class="btn-icon btn-icon-xs" title="Edit">&#x270e;</button>
+          <button class="btn-icon btn-icon-danger btn-icon-xs" title="Delete">&times;</button>
+          <button class="btn-icon btn-icon-xs" title="Test webhook">&#x25b6;</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- View bubbles -->
+    <nav class="view-tabs" role="tablist" aria-label="Views">
+      <button class="view-tab active" data-view="alarms" onclick="showView('alarms')">&#x23f0; Alarms</button>
+      <button class="view-tab" data-view="calendar" onclick="showView('calendar')">&#x1f4c5; Calendar</button>
+      <button class="view-tab" data-view="log" onclick="showView('log')">&#x1f4dc; Log</button>
+      <button class="view-tab" data-view="all" onclick="showView('all')">All</button>
+    </nav>
+
+    <!-- Weekly alarms -->
+    <section class="section" id="view-alarms">
+      <div class="section-header">
+        <h2>&#x23f0; Alarms</h2>
+        <div style="display:flex;gap:0.5rem;align-items:center">
+          <select class="btn btn-sm sort-select" name="sort">
+            <option value="created">Newest</option>
+            <option value="time_asc" selected>Time &#x2191;</option>
+          </select>
+          <button class="btn btn-primary">+ New Alarm</button>
+        </div>
+      </div>
+      <div class="alarm-list">
+        <div class="alarm-card">
+          <div class="alarm-main">
+            <div class="alarm-info">
+              <strong>Midweek update</strong>
+              <span class="alarm-meta">&#x1f4e2; announcements &middot; &#x1f552; 12:00 PM &middot; Wednesdays &middot; &#x1f310; America/New_York &middot; &#x1f4dd; Plain Text</span>
+            </div>
+            <div class="alarm-badges">
+              <span class="badge badge-next" title="Next scheduled run">Next: Wed, Nov 11, 12:00 PM</span>
+            </div>
+            <div class="alarm-actions">
+              <label class="toggle">
+                <input type="checkbox" checked>
+                <span class="slider"></span>
+              </label>
+              <button class="btn-icon" title="Edit">&#x270e;</button>
+              <button class="btn-icon btn-icon-danger" title="Delete">&#x2716;</button>
+              <button class="btn-test" title="Send test">&#x25b6; Test</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="alarm-card">
+          <div class="alarm-main">
+            <div class="alarm-info">
+              <strong>Weekly report</strong>
+              <span class="alarm-meta">&#x1f4e2; general &middot; &#x1f552; 10:00 AM &middot; Mondays &middot; &#x1f310; America/New_York &middot; &#x1f4dd; Plain Text</span>
+            </div>
+            <div class="alarm-badges">
+              <span class="badge badge-next">Next: Mon, Nov 9, 10:00 AM</span>
+            </div>
+            <div class="alarm-actions">
+              <label class="toggle">
+                <input type="checkbox" checked>
+                <span class="slider"></span>
+              </label>
+              <button class="btn-icon" title="Edit">&#x270e;</button>
+              <button class="btn-icon btn-icon-danger" title="Delete">&#x2716;</button>
+              <button class="btn-test" title="Send test">&#x25b6; Test</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="alarm-card">
+          <div class="alarm-main">
+            <div class="alarm-info">
+              <strong>Backup reminder</strong>
+              <span class="alarm-meta">&#x1f4e2; ops &middot; &#x1f552; 8:00 PM &middot; Sundays &middot; &#x1f310; America/New_York &middot; &#x1f4dd; Plain Text</span>
+            </div>
+            <div class="alarm-badges">
+              <span class="badge badge-next">Next: Sun, Nov 29, 8:00 PM</span>
+            </div>
+            <div class="alarm-actions">
+              <label class="toggle">
+                <input type="checkbox">
+                <span class="slider"></span>
+              </label>
+              <button class="btn-icon" title="Edit">&#x270e;</button>
+              <button class="btn-icon btn-icon-danger" title="Delete">&#x2716;</button>
+              <button class="btn-test" title="Send test">&#x25b6; Test</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Calendar -->
+    <section class="section" id="view-calendar">
+      <div class="section-header">
+        <h2>&#x1f4c5; Calendar</h2>
+        <div class="cal-controls">
+          <button class="btn btn-sm">Today</button>
+          <button class="btn-icon" title="Previous month">&#x2039;</button>
+          <span class="cal-month">November 2026</span>
+          <button class="btn-icon" title="Next month">&#x203a;</button>
+          <button class="btn btn-primary btn-sm" onclick="openModal()">+ New Alert</button>
+        </div>
+      </div>
+
+      <div class="cal-legend">
+        <span><i class="dot weekly"></i> Weekly alarm</span>
+        <span><i class="dot dated"></i> Calendar alert</span>
+      </div>
+
+      <div class="calendar">
+        <div class="cal-weekdays">
+          <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+        </div>
+        <div class="cal-grid">
+          <!-- Row 1 -->
+          <div class="cal-day out"><span class="cal-num">26</span><button class="cal-add" title="Add alert">+</button></div>
+          <div class="cal-day out"><span class="cal-num">27</span><button class="cal-add" title="Add alert">+</button></div>
+          <div class="cal-day out"><span class="cal-num">28</span><button class="cal-add" title="Add alert">+</button></div>
+          <div class="cal-day out"><span class="cal-num">29</span><button class="cal-add" title="Add alert">+</button></div>
+          <div class="cal-day out"><span class="cal-num">30</span><button class="cal-add" title="Add alert">+</button></div>
+          <div class="cal-day out"><span class="cal-num">31</span><button class="cal-add" title="Add alert">+</button></div>
+          <div class="cal-day">
+            <span class="cal-num">1</span><button class="cal-add" title="Add alert">+</button>
+            <div class="cal-events">
+              <span class="cal-event weekly" title="Backup reminder, 8:00 PM">Backup reminder</span>
+            </div>
+          </div>
+
+          <!-- Row 2 -->
+          <div class="cal-day">
+            <span class="cal-num">2</span><button class="cal-add" title="Add alert">+</button>
+            <div class="cal-events">
+              <span class="cal-event weekly" title="Weekly report, 10:00 AM">Weekly report</span>
+            </div>
+          </div>
+          <div class="cal-day"><span class="cal-num">3</span><button class="cal-add" title="Add alert">+</button></div>
+          <div class="cal-day">
+            <span class="cal-num">4</span><button class="cal-add" title="Add alert">+</button>
+            <div class="cal-events">
+              <span class="cal-event weekly" title="Midweek update, 12:00 PM">Midweek update</span>
+            </div>
+          </div>
+          <div class="cal-day today selected">
+            <span class="cal-num">5</span><button class="cal-add" title="Add alert">+</button>
+            <div class="cal-events">
+              <span class="cal-event dated" title="Dentist appointment, 2:30 PM">Dentist appointment</span>
+            </div>
+          </div>
+          <div class="cal-day"><span class="cal-num">6</span><button class="cal-add" title="Add alert">+</button></div>
+          <div class="cal-day"><span class="cal-num">7</span><button class="cal-add" title="Add alert">+</button></div>
+          <div class="cal-day">
+            <span class="cal-num">8</span><button class="cal-add" title="Add alert">+</button>
+            <div class="cal-events">
+              <span class="cal-event weekly" title="Backup reminder, 8:00 PM">Backup reminder</span>
+            </div>
+          </div>
+
+          <!-- Row 3 -->
+          <div class="cal-day">
+            <span class="cal-num">9</span><button class="cal-add" title="Add alert">+</button>
+            <div class="cal-events">
+              <span class="cal-event weekly" title="Weekly report, 10:00 AM">Weekly report</span>
+            </div>
+          </div>
+          <div class="cal-day"><span class="cal-num">10</span><button class="cal-add" title="Add alert">+</button></div>
+          <div class="cal-day">
+            <span class="cal-num">11</span><button class="cal-add" title="Add alert">+</button>
+            <div class="cal-events">
+              <span class="cal-event weekly" title="Midweek update, 12:00 PM">Midweek update</span>
+              <span class="cal-event dated" title="Veterans Day post, 9:00 AM">Veterans Day post</span>
+            </div>
+          </div>
+          <div class="cal-day"><span class="cal-num">12</span><button class="cal-add" title="Add alert">+</button></div>
+          <div class="cal-day"><span class="cal-num">13</span><button class="cal-add" title="Add alert">+</button></div>
+          <div class="cal-day"><span class="cal-num">14</span><button class="cal-add" title="Add alert">+</button></div>
+          <div class="cal-day">
+            <span class="cal-num">15</span><button class="cal-add" title="Add alert">+</button>
+            <div class="cal-events">
+              <span class="cal-event weekly" title="Backup reminder, 8:00 PM">Backup reminder</span>
+            </div>
+          </div>
+
+          <!-- Row 4 -->
+          <div class="cal-day">
+            <span class="cal-num">16</span><button class="cal-add" title="Add alert">+</button>
+            <div class="cal-events">
+              <span class="cal-event weekly" title="Weekly report, 10:00 AM">Weekly report</span>
+            </div>
+          </div>
+          <div class="cal-day"><span class="cal-num">17</span><button class="cal-add" title="Add alert">+</button></div>
+          <div class="cal-day">
+            <span class="cal-num">18</span><button class="cal-add" title="Add alert">+</button>
+            <div class="cal-events">
+              <span class="cal-event weekly" title="Midweek update, 12:00 PM">Midweek update</span>
+            </div>
+          </div>
+          <div class="cal-day"><span class="cal-num">19</span><button class="cal-add" title="Add alert">+</button></div>
+          <div class="cal-day">
+            <span class="cal-num">20</span><button class="cal-add" title="Add alert">+</button>
+            <div class="cal-events">
+              <span class="cal-event dated" title="Rent due, 9:00 AM, repeats monthly">Rent due</span>
+            </div>
+          </div>
+          <div class="cal-day"><span class="cal-num">21</span><button class="cal-add" title="Add alert">+</button></div>
+          <div class="cal-day">
+            <span class="cal-num">22</span><button class="cal-add" title="Add alert">+</button>
+            <div class="cal-events">
+              <span class="cal-event weekly" title="Backup reminder, 8:00 PM">Backup reminder</span>
+            </div>
+          </div>
+
+          <!-- Row 5 -->
+          <div class="cal-day">
+            <span class="cal-num">23</span><button class="cal-add" title="Add alert">+</button>
+            <div class="cal-events">
+              <span class="cal-event weekly" title="Weekly report, 10:00 AM">Weekly report</span>
+            </div>
+          </div>
+          <div class="cal-day"><span class="cal-num">24</span><button class="cal-add" title="Add alert">+</button></div>
+          <div class="cal-day">
+            <span class="cal-num">25</span><button class="cal-add" title="Add alert">+</button>
+            <div class="cal-events">
+              <span class="cal-event weekly" title="Midweek update, 12:00 PM">Midweek update</span>
+            </div>
+          </div>
+          <div class="cal-day"><span class="cal-num">26</span><button class="cal-add" title="Add alert">+</button></div>
+          <div class="cal-day"><span class="cal-num">27</span><button class="cal-add" title="Add alert">+</button></div>
+          <div class="cal-day"><span class="cal-num">28</span><button class="cal-add" title="Add alert">+</button></div>
+          <div class="cal-day">
+            <span class="cal-num">29</span><button class="cal-add" title="Add alert">+</button>
+            <div class="cal-events">
+              <span class="cal-event weekly" title="Backup reminder, 8:00 PM">Backup reminder</span>
+            </div>
+          </div>
+
+          <!-- Row 6 -->
+          <div class="cal-day">
+            <span class="cal-num">30</span><button class="cal-add" title="Add alert">+</button>
+            <div class="cal-events">
+              <span class="cal-event weekly" title="Weekly report, 10:00 AM">Weekly report</span>
+            </div>
+          </div>
+          <div class="cal-day out">
+            <span class="cal-num">1</span><button class="cal-add" title="Add alert">+</button>
+            <div class="cal-events">
+              <span class="cal-event dated" title="Domain renewal, 8:00 AM, repeats yearly">Domain renewal</span>
+            </div>
+          </div>
+          <div class="cal-day out"><span class="cal-num">2</span><button class="cal-add" title="Add alert">+</button></div>
+          <div class="cal-day out"><span class="cal-num">3</span><button class="cal-add" title="Add alert">+</button></div>
+          <div class="cal-day out"><span class="cal-num">4</span><button class="cal-add" title="Add alert">+</button></div>
+          <div class="cal-day out"><span class="cal-num">5</span><button class="cal-add" title="Add alert">+</button></div>
+          <div class="cal-day out"><span class="cal-num">6</span><button class="cal-add" title="Add alert">+</button></div>
+        </div>
+      </div>
+      <p class="cal-hint">Click a day to see its alerts below. Click an event to edit it.</p>
+
+      <div class="day-panel">
+        <div class="day-panel-head">
+          <strong>Thursday, November 5</strong>
+          <button class="btn btn-primary btn-sm" onclick="openModal()">+ Add alert</button>
+        </div>
+        <div class="day-panel-body">
+          <div class="day-event-row">
+            <span class="cal-event dated" title="Dentist appointment, 2:30 PM">Dentist appointment</span>
+            <span class="day-event-meta">2:30 PM &middot; Calendar alert &middot; Repeats: never</span>
+            <div class="day-event-actions">
+              <label class="toggle" title="Enable or disable">
+                <input type="checkbox" checked>
+                <span class="slider"></span>
+              </label>
+              <button class="btn-icon btn-icon-xs" title="Edit">&#x270e;</button>
+              <button class="btn-icon btn-icon-danger btn-icon-xs" title="Delete">&times;</button>
+              <button class="btn-test" title="Send test">&#x25b6; Test</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Log -->
+    <section class="section" id="view-log">
+      <div class="section-header">
+        <h2>&#x1f4dc; Notification Log</h2>
+        <a class="log-clear">Clear log</a>
+      </div>
+      <div class="log-list">
+        <div class="log-row">
+          <span class="log-time">Nov 5, 2:30 PM</span>
+          <div class="log-main">
+            <strong>Dentist appointment</strong>
+            <span class="log-meta"><span class="log-kind calendar">Calendar</span>general &middot; Reminder: dentist appointment at 2:30 PM</span>
+          </div>
+          <span class="badge badge-ok">Sent</span>
+        </div>
+
+        <div class="log-row">
+          <span class="log-time">Nov 4, 12:00 PM</span>
+          <div class="log-main">
+            <strong>Midweek update</strong>
+            <span class="log-meta"><span class="log-kind weekly">Weekly</span>announcements &middot; Halfway through the week</span>
+          </div>
+          <span class="badge badge-ok">Sent</span>
+        </div>
+
+        <div class="log-row">
+          <span class="log-time">Nov 2, 10:00 AM</span>
+          <div class="log-main">
+            <strong>Weekly report</strong>
+            <span class="log-meta"><span class="log-kind weekly">Weekly</span>general &middot; Time to send the weekly report</span>
+          </div>
+          <span class="badge badge-ok">Sent</span>
+        </div>
+
+        <div class="log-row">
+          <span class="log-time">Nov 1, 8:00 PM</span>
+          <div class="log-main">
+            <strong>Backup reminder</strong>
+            <span class="log-meta"><span class="log-kind weekly">Weekly</span>ops &middot; Connection timed out after 15s</span>
+          </div>
+          <span class="badge badge-err">Failed</span>
+        </div>
+
+        <div class="log-row">
+          <span class="log-time">Nov 1, 7:58 PM</span>
+          <div class="log-main">
+            <strong>Test: ops</strong>
+            <span class="log-meta"><span class="log-kind test">Test</span>ops &middot; Test message from ops</span>
+          </div>
+          <span class="badge badge-ok">Sent</span>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="footer">
+    BUILT WITH <span class="heart">&hearts;</span> BY <a href="#">DESYNKRO</a>
+  </footer>
+
+  <!-- New Calendar Alert modal -->
+  <div id="modal-overlay" class="modal-overlay" style="display:none" onclick="closeModal(event)">
+    <div class="modal-content" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3>New Calendar Alert</h3>
+        <button class="btn-icon" onclick="closeModal()">&times;</button>
+      </div>
+      <form onsubmit="event.preventDefault()">
+        <label>Name</label>
+        <input type="text" value="Dentist appointment" required maxlength="100">
+
+        <label>Webhook</label>
+        <select required>
+          <option value="">-- Select --</option>
+          <option selected>general</option>
+          <option>announcements</option>
+          <option>ops</option>
+        </select>
+
+        <label>Message <span class="hint">(Discord markdown supported)</span></label>
+        <textarea rows="4" required maxlength="2000">Reminder: dentist appointment at 2:30 PM.</textarea>
+        <div class="char-count">42 / 2000</div>
+        <div class="preview-box" style="display:block">Reminder: dentist appointment at 2:30 PM.</div>
+
+        <div class="msg-type-row">
+          <label class="radio-label"><input type="radio" name="message_type" value="text" checked onchange="toggleEmbed(this)"> Plain text</label>
+          <label class="radio-label"><input type="radio" name="message_type" value="embed" onchange="toggleEmbed(this)"> Rich embed</label>
+        </div>
+
+        <div id="embed-fields" class="embed-fields" style="display:none">
+          <label>Embed title (optional)</label>
+          <input type="text" maxlength="256" placeholder="Appointment reminder">
+          <label>Embed color</label>
+          <div class="color-row">
+            <input type="color" value="#5865f2">
+            <input type="text" class="color-text" value="#5865F2" maxlength="7">
+          </div>
+        </div>
+
+        <label class="form-section-label">When</label>
+
+        <div class="field-row">
+          <div>
+            <label>Date</label>
+            <input type="date" value="2026-11-05" required>
+          </div>
+          <div>
+            <label>Time</label>
+            <input type="time" value="14:30" required>
+          </div>
+          <div>
+            <label>Repeat</label>
+            <select>
+              <option selected>None (one-time)</option>
+              <option>Daily</option>
+              <option>Weekly</option>
+              <option>Monthly</option>
+              <option>Yearly</option>
+            </select>
+          </div>
+        </div>
+
+        <label>Timezone</label>
+        <input type="text" value="America/New_York" list="tz-list" required>
+        <datalist id="tz-list">
+          <option value="America/New_York"></option>
+          <option value="America/Chicago"></option>
+          <option value="America/Denver"></option>
+          <option value="America/Los_Angeles"></option>
+          <option value="Europe/London"></option>
+          <option value="Europe/Berlin"></option>
+          <option value="Asia/Tokyo"></option>
+          <option value="Australia/Sydney"></option>
+          <option value="UTC"></option>
+        </datalist>
+        <p class="hint" style="margin-top:0.4rem">One-time alerts deactivate after they fire. Repeating alerts keep the same day each cycle, and short months clamp to their last day.</p>
+
+        <div class="modal-actions">
+          <button type="button" class="btn" onclick="closeModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create Alert</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    function showView(view) {
+      ['alarms', 'calendar', 'log'].forEach(function (name) {
+        var el = document.getElementById('view-' + name);
+        if (!el) return;
+        el.style.display = (view === 'all' || view === name) ? '' : 'none';
+      });
+      document.querySelectorAll('.view-tab').forEach(function (tab) {
+        tab.classList.toggle('active', tab.dataset.view === view);
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', function () { showView('alarms'); });
+
+    function openModal() {
+      document.getElementById('modal-overlay').style.display = 'flex';
+    }
+    function closeModal(e) {
+      if (e && e.target !== e.currentTarget) return;
+      document.getElementById('modal-overlay').style.display = 'none';
+    }
+    function toggleEmbed(radio) {
+      var fields = document.getElementById('embed-fields');
+      if (!fields) return;
+      fields.style.display = radio.value === 'embed' ? 'block' : 'none';
+    }
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') closeModal();
+    });
+  </script>
+</body>
+</html>
