@@ -2,18 +2,21 @@ from datetime import date as dt_date
 from datetime import datetime
 from datetime import time as dt_time
 from datetime import timezone as dt_timezone
+from datetime import timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Form
 from fastapi.responses import HTMLResponse
 
 from app.discord import deliver
-from app.models import TIMEZONES, CalendarAlert
-from app.recurrence import compute_next_fire
+from app.models import DAYS_OF_WEEK, TIMEZONES, CalendarAlert
+from app.recurrence import compute_next_fire, occurrences_between
 from app.render import escape, message_fields, timezone_input, webhook_options
 from app.storage import read_json, write_json
 
 router = APIRouter()
+
+DISPLAY_TZ = datetime.now().astimezone().tzinfo or dt_timezone.utc
 
 REPEAT_OPTIONS = (
     ("none", "None (one-time)"),
@@ -181,6 +184,241 @@ def render_modal(alert: CalendarAlert | None = None, prefill_date: str = "") -> 
     </form>
   </div>
 </div>"""
+
+
+WEEKDAY_NAMES = tuple(DAYS_OF_WEEK)
+
+
+def current_month() -> dt_date:
+    return datetime.now(DISPLAY_TZ).date().replace(day=1)
+
+
+def _shift_month(month: dt_date, delta: int) -> dt_date:
+    total = (month.year * 12 + (month.month - 1)) + delta
+    return dt_date(total // 12, total % 12 + 1, 1)
+
+
+def _month_bounds(month: dt_date) -> tuple[dt_date, dt_date]:
+    start = month.replace(day=1)
+    return start, _shift_month(start, 1)
+
+
+def _event(kind: str, row: dict, time_value: str) -> dict:
+    return {
+        "kind": kind,
+        "id": row.get("id", ""),
+        "name": row.get("name", ""),
+        "time": time_value,
+    }
+
+
+def _weekly_events_for_day(day: dt_date, alarms: list[dict]) -> list[dict]:
+    weekday = WEEKDAY_NAMES[day.weekday()]
+    events = []
+    for alarm in alarms:
+        if not alarm.get("enabled", True):
+            continue
+        if weekday not in alarm.get("days", []):
+            continue
+        events.append(_event("weekly", alarm, alarm.get("time", "")))
+    return events
+
+
+def _calendar_events_by_day(month: dt_date, alerts: list[dict]) -> dict[dt_date, list[dict]]:
+    start, end = _month_bounds(month)
+    start_utc = datetime.combine(start, dt_time.min, tzinfo=DISPLAY_TZ).astimezone(dt_timezone.utc)
+    end_utc = datetime.combine(end, dt_time.min, tzinfo=DISPLAY_TZ).astimezone(dt_timezone.utc)
+    grouped: dict[dt_date, list[dict]] = {}
+
+    for row in alerts:
+        try:
+            alert = CalendarAlert(**row)
+        except Exception:
+            continue
+        if not alert.enabled:
+            continue
+        for occurrence in occurrences_between(
+            dt_date.fromisoformat(alert.date),
+            dt_time.fromisoformat(alert.time),
+            alert.timezone,
+            alert.repeat,
+            start_utc,
+            end_utc,
+        ):
+            day = occurrence.astimezone(DISPLAY_TZ).date()
+            if start <= day < end:
+                grouped.setdefault(day, []).append(_event("calendar", row, alert.time))
+    return grouped
+
+
+def _events_for_day(day: dt_date, alarms: list[dict], alerts: list[dict]) -> list[dict]:
+    events = _weekly_events_for_day(day, alarms)
+    day_start = datetime.combine(day, dt_time.min, tzinfo=DISPLAY_TZ)
+    start_utc = day_start.astimezone(dt_timezone.utc)
+    end_utc = (day_start + timedelta(days=1)).astimezone(dt_timezone.utc)
+
+    for row in alerts:
+        try:
+            alert = CalendarAlert(**row)
+        except Exception:
+            continue
+        if not alert.enabled:
+            continue
+        for occurrence in occurrences_between(
+            dt_date.fromisoformat(alert.date),
+            dt_time.fromisoformat(alert.time),
+            alert.timezone,
+            alert.repeat,
+            start_utc,
+            end_utc,
+        ):
+            if occurrence.astimezone(DISPLAY_TZ).date() == day:
+                events.append(_event("calendar", row, alert.time))
+                break
+
+    events.sort(key=lambda event: (event["time"], event["name"].lower()))
+    return events
+
+
+def _event_url(event: dict) -> str:
+    if event["kind"] == "weekly":
+        return f'/alarms/{escape(event["id"])}'
+    return f'/calendar/{escape(event["id"])}/edit'
+
+
+def _event_pill(event: dict) -> str:
+    return (
+        f'<span class="cal-event {event["kind"]}" role="button" tabindex="0" '
+        f'hx-get="{_event_url(event)}" hx-target="#modal-area" hx-swap="innerHTML" '
+        f'hx-on:click="event.stopPropagation()" '
+        f'title="{escape(event["name"])}, {escape(event["time"])}">'
+        f'{escape(event["name"])}</span>'
+    )
+
+
+def _day_cell(day: dt_date, month: dt_date, today: dt_date, events: list[dict]) -> str:
+    classes = ["cal-day"]
+    if day.month != month.month:
+        classes.append("out")
+    if day == today:
+        classes.append("today")
+
+    pills = "".join(_event_pill(event) for event in events[:3])
+    if len(events) > 3:
+        pills += (
+            f'<span class="cal-more" role="button" tabindex="0" '
+            f'hx-get="/calendar/day?date={day.isoformat()}" hx-target="#modal-area" '
+            f'hx-swap="innerHTML" hx-on:click="event.stopPropagation()">'
+            f'+{len(events) - 3} more</span>'
+        )
+
+    return f"""<div class="{' '.join(classes)}" role="button" tabindex="0" hx-get="/calendar/new?date={day.isoformat()}" hx-target="#modal-area" hx-swap="innerHTML">
+  <span class="cal-num">{day.day}</span>
+  <span class="cal-add">+</span>
+  <div class="cal-events">{pills}</div>
+</div>"""
+
+
+def render_month(month: dt_date, webhooks: list[dict], alarms: list[dict], alerts: list[dict]) -> str:
+    month = month.replace(day=1)
+    start, end = _month_bounds(month)
+    dated = _calendar_events_by_day(month, alerts)
+    today = datetime.now(DISPLAY_TZ).date()
+    grid_start = start - timedelta(days=start.weekday())
+
+    cells = []
+    for offset in range(42):
+        day = grid_start + timedelta(days=offset)
+        events = []
+        if start <= day < end:
+            events.extend(_weekly_events_for_day(day, alarms))
+            events.extend(dated.get(day, []))
+        events.sort(key=lambda event: (event["time"], event["name"].lower()))
+        cells.append(_day_cell(day, month, today, events))
+
+    prev_month = _shift_month(month, -1).strftime("%Y-%m")
+    next_month = _shift_month(month, 1).strftime("%Y-%m")
+    today_month = today.replace(day=1).strftime("%Y-%m")
+    weekdays = "".join(
+        f"<span>{name}</span>" for name in ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+    )
+
+    header = f"""<input type="hidden" id="cal-month" name="month" value="{month.strftime('%Y-%m')}">
+<div class="cal-header">
+  <div class="cal-controls">
+    <button class="btn btn-sm" hx-get="/calendar?month={today_month}" hx-target="#calendar-view" hx-swap="innerHTML">Today</button>
+    <button class="btn-icon" hx-get="/calendar?month={prev_month}" hx-target="#calendar-view" hx-swap="innerHTML" title="Previous month">&#x2039;</button>
+    <span class="cal-month">{month.strftime('%B %Y')}</span>
+    <button class="btn-icon" hx-get="/calendar?month={next_month}" hx-target="#calendar-view" hx-swap="innerHTML" title="Next month">&#x203a;</button>
+  </div>
+  <button class="btn btn-primary btn-sm" hx-get="/calendar/new?date={today.isoformat()}" hx-target="#modal-area" hx-swap="innerHTML">+ New Alert</button>
+</div>
+<div class="cal-legend">
+  <span><i class="dot weekly"></i> Weekly alarm</span>
+  <span><i class="dot dated"></i> Calendar alert</span>
+</div>"""
+
+    return f"""{header}
+<div class="calendar">
+  <div class="cal-weekdays">{weekdays}</div>
+  <div class="cal-grid">{''.join(cells)}</div>
+</div>
+<p class="cal-hint">Click a day to add an alert. Click a green event to edit it.</p>"""
+
+
+def render_day_modal(day: dt_date, webhooks: list[dict], alarms: list[dict], alerts: list[dict]) -> str:
+    events = _events_for_day(day, alarms, alerts)
+    rows = []
+    for event in events:
+        label = "Weekly alarm" if event["kind"] == "weekly" else "Calendar alert"
+        rows.append(f"""<div class="day-event-row">
+  <span class="cal-event {event['kind']}">{escape(event['name'])}</span>
+  <span class="day-event-meta">{escape(event['time'])} &middot; {label}</span>
+  <button class="btn-icon btn-icon-xs" hx-get="{_event_url(event)}" hx-target="#modal-area" hx-swap="innerHTML" title="Edit">&#x270e;</button>
+</div>""")
+
+    body = "".join(rows) or '<p class="empty">No alerts on this day.</p>'
+    return f"""<div id="modal-overlay" class="modal-overlay" onclick="closeModal(event)">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3>{day.strftime('%A, %B %-d')}</h3>
+      <button class="btn-icon" onclick="closeModal()">&times;</button>
+    </div>
+    <div class="day-list">{body}</div>
+    <div class="modal-actions" style="justify-content:space-between">
+      <button type="button" class="btn" onclick="closeModal()">Close</button>
+      <button class="btn btn-primary" hx-get="/calendar/new?date={day.isoformat()}" hx-target="#modal-area" hx-swap="innerHTML">+ Add alert</button>
+    </div>
+  </div>
+</div>"""
+
+
+@router.get("/calendar", response_class=HTMLResponse)
+async def calendar_fragment(month: str = ""):
+    try:
+        month_date = datetime.strptime(month, "%Y-%m").date()
+    except (TypeError, ValueError):
+        month_date = current_month()
+    return render_month(
+        month_date,
+        read_json("webhooks"),
+        read_json("alarms"),
+        read_json("calendar"),
+    )
+
+
+@router.get("/calendar/day", response_class=HTMLResponse)
+async def calendar_day_modal(date: str = ""):
+    try:
+        day = dt_date.fromisoformat(date)
+    except (TypeError, ValueError):
+        day = datetime.now(DISPLAY_TZ).date()
+    return render_day_modal(
+        day,
+        read_json("webhooks"),
+        read_json("alarms"),
+        read_json("calendar"),
+    )
 
 
 @router.get("/calendar/new", response_class=HTMLResponse)

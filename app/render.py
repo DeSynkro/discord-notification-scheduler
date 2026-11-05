@@ -1,4 +1,8 @@
 import html
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+from app.notification_log import read_log
 
 
 def escape(value) -> str:
@@ -56,3 +60,50 @@ def message_fields(
           <input type="text" class="color-text" value="{color}" maxlength="7" oninput="this.previousElementSibling.value=this.value">
         </div>
       </div>"""
+
+
+def render_log(limit: int = 50) -> str:
+    rows = read_log(limit)
+    if not rows:
+        return '<span class="empty">No notifications logged yet</span>'
+
+    parts = []
+    for row in rows:
+        kind = row.get("kind", "")
+        kind_label = {
+            "weekly": "Weekly",
+            "calendar": "Calendar",
+            "test": "Test",
+        }.get(kind, kind.title())
+        ts_label = row.get("ts", "")
+        try:
+            moment = datetime.fromisoformat(ts_label)
+            tz_name = row.get("timezone") or "UTC"
+            moment = moment.astimezone(ZoneInfo(tz_name))
+            ts_label = moment.strftime("%b %-d, %-I:%M %p")
+        except Exception:
+            pass
+
+        status = row.get("status")
+        badge = (
+            '<span class="badge badge-ok">Sent</span>'
+            if status == "ok"
+            else '<span class="badge badge-err">Failed</span>'
+        )
+        meta = (
+            f'{escape(row.get("webhook_name", ""))} &middot; '
+            f'{escape(row.get("preview", ""))}'
+        )
+        if row.get("error"):
+            meta += f' &middot; <span class="log-error">{escape(row["error"])}</span>'
+
+        parts.append(f"""<div class="log-row">
+  <span class="log-time">{escape(ts_label)}</span>
+  <div class="log-main">
+    <strong>{escape(row.get("name", ""))}</strong>
+    <span class="log-meta"><span class="log-kind {escape(kind)}">{escape(kind_label)}</span>{meta}</span>
+  </div>
+  {badge}
+</div>""")
+
+    return "".join(parts)

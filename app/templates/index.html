@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/static/favicon/apple-touch-icon.png">
-  <link rel="stylesheet" href="/static/style.css?v=1.4">
+  <link rel="stylesheet" href="/static/style.css?v=1.5">
   <script src="/static/htmx.min.js"></script>
 </head>
 <body>
@@ -54,8 +54,16 @@
       </div>
     </section>
 
+    <!-- View bubbles -->
+    <nav class="view-tabs" role="tablist" aria-label="Views">
+      <button class="view-tab active" data-view="alarms" onclick="showView('alarms')">&#x23f0; Alarms</button>
+      <button class="view-tab" data-view="calendar" onclick="showView('calendar')">&#x1f4c5; Calendar</button>
+      <button class="view-tab" data-view="log" onclick="showView('log')">&#x1f4dc; Log</button>
+      <button class="view-tab" data-view="all" onclick="showView('all')">All</button>
+    </nav>
+
     <!-- Alarms -->
-    <section class="section">
+    <section class="section" id="view-alarms">
       <div class="section-header">
         <h2>&#x23f0; Alarms</h2>
         <div style="display:flex;gap:0.5rem;align-items:center">
@@ -82,6 +90,27 @@
       <div class="delete-all">
         <a hx-delete="/alarms" hx-target="#alarm-list" hx-swap="innerHTML"
            hx-confirm="Delete all alarms? This cannot be undone.">Delete all alarms</a>
+      </div>
+    </section>
+
+    <!-- Calendar -->
+    <section class="section" id="view-calendar">
+      <div class="section-header">
+        <h2>&#x1f4c5; Calendar</h2>
+      </div>
+      <div id="calendar-view" hx-get="/calendar" hx-trigger="refresh-lists from:body" hx-include="#cal-month" hx-swap="innerHTML">
+        {{ calendar_html | safe }}
+      </div>
+    </section>
+
+    <!-- Log -->
+    <section class="section" id="view-log">
+      <div class="section-header">
+        <h2>&#x1f4dc; Notification Log</h2>
+        <a class="log-clear" hx-delete="/log" hx-swap="none" hx-confirm="Clear the notification log?">Clear log</a>
+      </div>
+      <div id="log-view" hx-get="/log" hx-trigger="every 60s, refresh-lists from:body" hx-swap="innerHTML">
+        {{ log_html | safe }}
       </div>
     </section>
 
@@ -150,7 +179,22 @@
     var _lastToastTime = 0;
     var _staggered = false;
 
+    function showView(view) {
+      ['alarms', 'calendar', 'log'].forEach(function(name) {
+        var el = document.getElementById('view-' + name);
+        if (!el) return;
+        el.style.display = (view === 'all' || view === name) ? '' : 'none';
+      });
+      document.querySelectorAll('.view-tab').forEach(function(tab) {
+        tab.classList.toggle('active', tab.dataset.view === view);
+      });
+      try { localStorage.setItem('dns.view', view); } catch (e) {}
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
+      var savedView = 'alarms';
+      try { savedView = localStorage.getItem('dns.view') || 'alarms'; } catch (e) {}
+      showView(savedView);
       ['alarm-list', 'webhook-list'].forEach(function(id) {
         var list = document.getElementById(id);
         if (!list || !list.children.length) return;

@@ -16,8 +16,9 @@ from zoneinfo import ZoneInfo
 
 from app.models import Alarm, DAYS_OF_WEEK, TIMEZONES, Webhook
 from app.storage import read_json, write_json
-from app.render import escape, message_fields, timezone_input, webhook_options
-from app.calendar_alerts import router as calendar_router
+from app.render import escape, message_fields, render_log, timezone_input, webhook_options
+from app.calendar_alerts import current_month, render_month, router as calendar_router
+from app.notification_log import clear_log
 from app.scheduler import start as start_scheduler, stop as stop_scheduler
 from app.discord import send_webhook
 
@@ -337,15 +338,37 @@ async def dashboard(request: Request):
     for a in alarms:
         a.setdefault("created", "2000-01-01T00:00:00")
     alarms.sort(key=lambda a: a["time"])
+    calendar_html = render_month(current_month(), webhooks, alarms, read_json("calendar"))
+    log_html = render_log(50)
     return templates.TemplateResponse(request, "index.html", {
         "request": request,
         "webhooks": webhooks,
         "alarms": alarms,
         "timezones": TIMEZONES,
         "days": DAYS_OF_WEEK,
+        "calendar_html": calendar_html,
+        "log_html": log_html,
         "_alarm_card": _alarm_card_html,
         "_webhook_chip": _webhook_chip_html,
     })
+
+
+@app.get("/log", response_class=HTMLResponse)
+async def log_fragment():
+    return render_log(50)
+
+
+@app.delete("/log", response_class=HTMLResponse)
+async def clear_log_route():
+    clear_log()
+    return HTMLResponse(
+        "",
+        headers={
+            "X-Toast-Message": "Log cleared",
+            "X-Toast-Type": "ok",
+            "HX-Trigger": "refresh-lists",
+        },
+    )
 
 
 @app.get("/webhooks", response_class=HTMLResponse)

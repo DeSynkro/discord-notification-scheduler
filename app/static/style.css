@@ -880,13 +880,393 @@ body {
   transition: opacity 0.15s ease;
 }
 
+/* View bubbles */
+.view-tabs {
+  display: flex;
+  gap: 0.3rem;
+  width: fit-content;
+  margin-bottom: 1.6rem;
+  padding: 0.3rem;
+  background: rgba(22, 27, 34, 0.65);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(48, 54, 61, 0.5);
+  border-radius: 999px;
+}
+
+.view-tab {
+  padding: 0.4rem 1rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.view-tab:hover {
+  color: var(--text);
+  background: rgba(88, 101, 242, 0.08);
+}
+
+.view-tab.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  box-shadow: 0 0 10px var(--primary-glow);
+}
+
+/* Calendar */
+.cal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+}
+
+.cal-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.cal-month {
+  min-width: 9.5rem;
+  text-align: center;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text-bright);
+}
+
+.cal-legend {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  margin-bottom: 0.6rem;
+  padding-left: 0.15rem;
+}
+
+.cal-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.cal-legend .dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.cal-legend .dot.weekly { background: var(--primary); }
+.cal-legend .dot.dated { background: var(--success); }
+
+.calendar {
+  background: rgba(22, 27, 34, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(48, 54, 61, 0.6);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.cal-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  background: rgba(13, 17, 23, 0.6);
+  border-bottom: 1px solid rgba(48, 54, 61, 0.6);
+}
+
+.cal-weekdays span {
+  padding: 0.5rem 0.4rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+
+.cal-day {
+  position: relative;
+  min-height: 96px;
+  padding: 0.35rem 0.4rem 0.45rem;
+  border-right: 1px solid rgba(48, 54, 61, 0.45);
+  border-bottom: 1px solid rgba(48, 54, 61, 0.45);
+  transition: background var(--transition);
+  cursor: pointer;
+}
+
+.cal-day:nth-child(7n) { border-right: none; }
+.cal-day:nth-last-child(-n+7) { border-bottom: none; }
+.cal-day:hover { background: rgba(88, 101, 242, 0.07); }
+.cal-day.out { opacity: 0.38; }
+
+.cal-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--text-dim);
+  border-radius: 50%;
+}
+
+.cal-day.today .cal-num {
+  background: var(--primary);
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 0 10px var(--primary-glow);
+}
+
+.cal-events {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+  margin-top: 0.2rem;
+}
+
+.cal-event {
+  display: block;
+  font-size: 0.66rem;
+  line-height: 1.35;
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+  border-left: 2px solid;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: filter var(--transition);
+}
+
+.cal-event:hover { filter: brightness(1.3); }
+
+.cal-event.weekly {
+  background: rgba(88, 101, 242, 0.16);
+  border-color: var(--primary);
+  color: #a5b4fc;
+}
+
+.cal-event.dated {
+  background: rgba(63, 185, 80, 0.13);
+  border-color: var(--success);
+  color: #86efac;
+}
+
+.cal-add {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-dim);
+  border-radius: 4px;
+  font-size: 0.7rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition), color var(--transition), border-color var(--transition);
+}
+
+.cal-day:hover .cal-add { opacity: 1; }
+
+.cal-more {
+  font-size: 0.66rem;
+  color: #a5b4fc;
+  cursor: pointer;
+  padding-left: 0.15rem;
+}
+
+.cal-hint {
+  margin-top: 0.6rem;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  padding-left: 0.15rem;
+}
+
+/* Day list modal */
+.day-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.day-event-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0;
+  border-top: 1px solid rgba(48, 54, 61, 0.35);
+}
+
+.day-event-row:first-child { border-top: none; }
+
+.day-event-row .cal-event {
+  flex-shrink: 0;
+  max-width: 11rem;
+}
+
+.day-event-meta {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Log */
+.log-list {
+  background: rgba(22, 27, 34, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(48, 54, 61, 0.6);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.log-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.55rem 0.9rem;
+  border-top: 1px solid rgba(48, 54, 61, 0.45);
+}
+
+.log-row:first-child { border-top: none; }
+
+.log-time {
+  width: 8.5rem;
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.log-main { flex: 1; min-width: 0; }
+
+.log-main strong {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-bright);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.log-meta {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.log-kind {
+  display: inline-block;
+  font-size: 0.62rem;
+  font-weight: 600;
+  padding: 0.02rem 0.35rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  margin-right: 0.35rem;
+  vertical-align: 1px;
+}
+
+.log-kind.calendar {
+  color: #86efac;
+  border-color: rgba(63, 185, 80, 0.4);
+  background: rgba(63, 185, 80, 0.1);
+}
+
+.log-kind.weekly {
+  color: #a5b4fc;
+  border-color: rgba(88, 101, 242, 0.4);
+  background: rgba(88, 101, 242, 0.1);
+}
+
+.log-kind.test { color: var(--text-dim); }
+.log-error { color: var(--danger); }
+
+.log-clear {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  text-decoration: none;
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity var(--transition), color var(--transition);
+}
+
+.log-clear:hover { opacity: 1; color: var(--danger); }
+
+/* Calendar modal extras */
+.btn-danger {
+  background: rgba(248, 81, 73, 0.1);
+  border-color: rgba(248, 81, 73, 0.4);
+  color: var(--danger);
+}
+
+.btn-danger:hover {
+  background: rgba(248, 81, 73, 0.2);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.field-row {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.field-row > div { flex: 1; }
+
+.form-section-label {
+  margin-top: 1.1rem !important;
+  margin-bottom: 0.4rem !important;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--border);
+  color: var(--text-bright) !important;
+  font-size: 0.78rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 680px) {
+  .cal-day { min-height: 62px; }
+  .cal-event { font-size: 0.6rem; padding: 0.05rem 0.2rem; }
+  .cal-month { min-width: 7rem; font-size: 0.8rem; }
+  .log-time { width: 5.5rem; }
+  .field-row { flex-direction: column; gap: 0; }
+}
+
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   :root { animation: none; }
   .header::after { animation: none; }
-  .alarm-card, .webhook-chip { transition: none; }
+  .alarm-card, .webhook-chip, .cal-day, .cal-event, .view-tab { transition: none; }
   .modal-content { animation: none; }
   .stagger-item { animation: none; opacity: 1; transform: none; }
   .toast { animation: none; }
   .heart { animation: none; }
+  .cal-add { transition: none; }
 }
