@@ -12,6 +12,7 @@ __pycache__/
 # OS
 .DS_Store
 Thumbs.db
+.directory
 
 # IDE
 .vscode/
