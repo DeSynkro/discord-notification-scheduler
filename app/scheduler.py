@@ -3,9 +3,9 @@ from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-from app.models import Alarm, DAYS_OF_WEEK
+from app.models import Alarm
 from app.storage import read_json, write_json
-from app.discord import send_webhook
+from app.discord import deliver
 
 scheduler = AsyncIOScheduler(timezone=dt_timezone.utc)
 
@@ -16,10 +16,9 @@ _sent_this_minute: set[str] = set()
 _last_poll_minute: int = -1
 
 
-async def _poll():
+async def _poll_weekly(now: datetime) -> None:
     global _last_poll_minute
 
-    now = datetime.now(dt_timezone.utc)
     current_minute = now.minute
 
     # Reset the sent-this-minute tracker when the minute ticks over
@@ -31,7 +30,11 @@ async def _poll():
     changed = False
 
     for item in raw:
-        alarm = Alarm(**item)
+        try:
+            alarm = Alarm(**item)
+        except Exception:
+            continue
+
         if not alarm.enabled:
             continue
 
@@ -56,7 +59,7 @@ async def _poll():
             continue
 
         _sent_this_minute.add(alarm.id)
-        success, err = await send_webhook(alarm)
+        success, err = await deliver(alarm, "weekly", alarm.id)
 
         if success:
             item["last_fired"] = datetime.now(dt_timezone.utc).isoformat()
@@ -68,6 +71,10 @@ async def _poll():
 
     if changed:
         write_json("alarms", raw)
+
+
+async def _poll(now: datetime | None = None) -> None:
+    await _poll_weekly(now or datetime.now(dt_timezone.utc))
 
 
 def start():

@@ -1,4 +1,5 @@
 import json
+import os
 import re
 from datetime import datetime
 from contextlib import asynccontextmanager
@@ -22,9 +23,12 @@ from app.discord import send_webhook
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    start_scheduler()
+    started = not os.environ.get("DISABLE_SCHEDULER")
+    if started:
+        start_scheduler()
     yield
-    stop_scheduler()
+    if started:
+        stop_scheduler()
 
 
 app = FastAPI(lifespan=lifespan)

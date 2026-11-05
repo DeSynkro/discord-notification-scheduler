@@ -1,6 +1,7 @@
 import httpx
 import asyncio
 from app.models import Alarm
+from app.notification_log import append_log
 from app.storage import read_json
 
 # Discord allows 30 requests per 60 seconds per webhook.
@@ -70,6 +71,16 @@ async def send_webhook(alarm: Alarm) -> tuple[bool, str]:
             return False, f"Discord returned {resp.status_code}"
 
     return False, "Failed after retries"
+
+
+async def deliver(
+    alarm: Alarm,
+    kind: str,
+    source_id: str | None = None,
+) -> tuple[bool, str]:
+    success, err = await send_webhook(alarm)
+    append_log(kind, alarm, source_id, success, err)
+    return success, err
 
 
 def _find_webhook_url(name: str) -> str | None:
