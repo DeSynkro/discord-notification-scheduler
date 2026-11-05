@@ -464,7 +464,11 @@ async def create_calendar_alert(
     write_json("calendar", rows)
     return HTMLResponse(
         _modal_close(),
-        headers={**_toast(f'Alert "{alert.name}" created'), "HX-Trigger": "refresh-lists"},
+        headers={
+            **_toast(f'Alert "{alert.name}" created'),
+            "HX-Trigger": "refresh-lists",
+            "X-Close-Modal": "1",
+        },
     )
 
 
@@ -500,7 +504,11 @@ async def update_calendar_alert(
     write_json("calendar", rows)
     return HTMLResponse(
         _modal_close(),
-        headers={**_toast(f'Alert "{alert.name}" saved'), "HX-Trigger": "refresh-lists"},
+        headers={
+            **_toast(f'Alert "{alert.name}" saved'),
+            "HX-Trigger": "refresh-lists",
+            "X-Close-Modal": "1",
+        },
     )
 
 
@@ -523,7 +531,11 @@ async def delete_calendar_alert(alert_id: str):
     write_json("calendar", remaining)
     return HTMLResponse(
         _modal_close(),
-        headers={**_toast("Alert deleted"), "HX-Trigger": "refresh-lists"},
+        headers={
+            **_toast("Alert deleted"),
+            "HX-Trigger": "refresh-lists",
+            "X-Close-Modal": "1",
+        },
     )
 
 

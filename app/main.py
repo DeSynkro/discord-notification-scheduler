@@ -20,7 +20,7 @@ from app.render import escape, message_fields, render_log, timezone_input, webho
 from app.calendar_alerts import current_month, render_month, router as calendar_router
 from app.notification_log import clear_log
 from app.scheduler import start as start_scheduler, stop as stop_scheduler
-from app.discord import send_webhook
+from app.discord import deliver
 
 
 @asynccontextmanager
@@ -501,13 +501,13 @@ async def test_webhook(name: str):
         return Response("", headers={"X-Toast-Message": f'Webhook "{name}" not found', "X-Toast-Type": "err"})
 
     test_alarm = Alarm(
-        name="Test",
+        name=f"Test: {name}",
         webhook_name=name,
         message=f"Test message from {name} via Discord Notification Scheduler :wave:",
         time="00:00",
         days=[],
     )
-    success, err = await send_webhook(test_alarm)
+    success, err = await deliver(test_alarm, "test", None)
     if success:
         return Response("", headers={"X-Toast-Message": f'Test sent to "{name}"', "X-Toast-Type": "ok"})
     return Response("", headers={"X-Toast-Message": f"Test failed: {err}", "X-Toast-Type": "err"})
@@ -743,11 +743,12 @@ async def test_alarm(alarm_id: str):
     except Exception as e:
         return HTMLResponse("", headers={"X-Toast-Message": f"Invalid alarm data: {e}", "X-Toast-Type": "err"})
 
-    success, err = await send_webhook(alarm)
-    webhooks = read_json("webhooks")
-    card = _alarm_card_html(raw, webhooks)
+    success, err = await deliver(alarm, "test", alarm.id)
     if success:
         raw["last_fired"] = datetime.now(ZoneInfo("UTC")).isoformat()
         write_json("alarms", alarms)
+    webhooks = read_json("webhooks")
+    card = _alarm_card_html(raw, webhooks)
+    if success:
         return HTMLResponse(card, headers={"X-Toast-Message": "Test message sent!", "X-Toast-Type": "ok"})
     return HTMLResponse(card, headers={"X-Toast-Message": f"Test failed: {err}", "X-Toast-Type": "err"})

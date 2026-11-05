@@ -246,6 +246,9 @@
       if (e.detail.successful && e.detail.elt && e.detail.elt.id === 'import-form') {
         closeModal();
       }
+      if (e.detail.successful && e.detail.xhr.getResponseHeader('X-Close-Modal')) {
+        closeModal();
+      }
       var msg = e.detail.xhr.getResponseHeader('X-Toast-Message');
       if (msg) {
         showToast(msg, e.detail.xhr.getResponseHeader('X-Toast-Type') || 'ok');
