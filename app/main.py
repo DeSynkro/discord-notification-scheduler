@@ -1,6 +1,5 @@
 import json
 import re
-import html
 from datetime import datetime
 from contextlib import asynccontextmanager
 from typing import Annotated
@@ -16,6 +15,7 @@ from zoneinfo import ZoneInfo
 
 from app.models import Alarm, DAYS_OF_WEEK, TIMEZONES, Webhook
 from app.storage import read_json, write_json
+from app.render import escape, message_fields, timezone_input, webhook_options
 from app.scheduler import start as start_scheduler, stop as stop_scheduler
 from app.discord import send_webhook
 
@@ -51,7 +51,7 @@ def _to_12h(time_24: str) -> str:
 
 def _alarm_card_html(alarm: dict, webhooks: list[dict]) -> str:
     hook = next((w for w in webhooks if w["name"] == alarm["webhook_name"]), None)
-    hook_label = f'<em>{html.escape(alarm["webhook_name"])}</em>' if not hook else html.escape(hook["name"])
+    hook_label = f'<em>{escape(alarm["webhook_name"])}</em>' if not hook else escape(hook["name"])
 
     days_str = ", ".join(d[:3] for d in alarm["days"]) if alarm["days"] else "All"
     if days_str == "Mon, Tue, Wed, Thu, Fri, Sat, Sun":
@@ -63,7 +63,7 @@ def _alarm_card_html(alarm: dict, webhooks: list[dict]) -> str:
 
     enabled = alarm["enabled"]
     time_12h = _to_12h(alarm["time"])
-    tz_label = alarm.get("timezone", "UTC")
+    tz_label = escape(alarm.get("timezone", "UTC"))
     msg_type_label = "Rich Embed" if alarm.get("message_type") == "embed" else "Plain Text"
 
     badge = ""
@@ -81,28 +81,29 @@ def _alarm_card_html(alarm: dict, webhooks: list[dict]) -> str:
         except Exception:
             pass
     if alarm.get("last_error"):
-        badge += f'<span class="badge badge-err" title="{alarm["last_error"]}">Failed</span>'
+        badge += f'<span class="badge badge-err" title="{escape(alarm["last_error"])}">Failed</span>'
 
-    toggle_url = f'/alarms/{alarm["id"]}/toggle'
-    delete_url = f'/alarms/{alarm["id"]}'
-    edit_url = f'/alarms/{alarm["id"]}'
-    test_url = f'/alarms/{alarm["id"]}/test'
+    alarm_id = escape(alarm["id"])
+    toggle_url = f'/alarms/{alarm_id}/toggle'
+    delete_url = f'/alarms/{alarm_id}'
+    edit_url = f'/alarms/{alarm_id}'
+    test_url = f'/alarms/{alarm_id}/test'
 
-    return f"""<div class="alarm-card" id="alarm-{alarm["id"]}">
+    return f"""<div class="alarm-card" id="alarm-{alarm_id}">
   <div class="alarm-main">
     <div class="alarm-info">
-      <strong>{html.escape(alarm["name"])}</strong>
+      <strong>{escape(alarm["name"])}</strong>
       <span class="alarm-meta">&#x1f4e2; {hook_label} &middot; &#x1f552; {time_12h} &middot; {days_str} &middot; &#x1f310; {tz_label} &middot; &#x1f4dd; {msg_type_label}</span>
     </div>
     <div class="alarm-badges">{badge}</div>
     <div class="alarm-actions">
       <label class="toggle">
-        <input type="checkbox" hx-post="{toggle_url}" hx-target="#alarm-{alarm["id"]}" hx-swap="outerHTML" {"checked" if enabled else ""}>
+        <input type="checkbox" hx-post="{toggle_url}" hx-target="#alarm-{alarm_id}" hx-swap="outerHTML" {"checked" if enabled else ""}>
         <span class="slider"></span>
       </label>
       <button class="btn-icon" hx-get="{edit_url}" hx-target="#modal-area" hx-swap="innerHTML" title="Edit">&#x270e;</button>
-      <button class="btn-icon btn-icon-danger" hx-delete="{delete_url}" hx-target="#alarm-{alarm["id"]}" hx-swap="outerHTML" hx-confirm="Delete this alarm?" title="Delete">&#x2716;</button>
-      <button class="btn-test" hx-post="{test_url}" hx-target="#alarm-{alarm["id"]}" hx-swap="outerHTML" title="Send test">&#x25b6; Test</button>
+      <button class="btn-icon btn-icon-danger" hx-delete="{delete_url}" hx-target="#alarm-{alarm_id}" hx-swap="outerHTML" hx-confirm="Delete this alarm?" title="Delete">&#x2716;</button>
+      <button class="btn-test" hx-post="{test_url}" hx-target="#alarm-{alarm_id}" hx-swap="outerHTML" title="Send test">&#x25b6; Test</button>
     </div>
   </div>
 </div>"""
@@ -114,11 +115,11 @@ def _safe_id(name: str) -> str:
 
 def _webhook_modal_form(wh: dict | None = None) -> str:
     is_edit = wh is not None
-    action = f'/webhooks/{wh["name"]}' if is_edit else '/webhooks'
+    action = f'/webhooks/{escape(wh["name"])}' if is_edit else '/webhooks'
     method = 'hx-put' if is_edit else 'hx-post'
     title = 'Edit Webhook' if is_edit else 'New Webhook'
-    name_val = wh["name"] if wh else ""
-    url_val = wh["url"] if wh else ""
+    name_val = escape(wh["name"]) if wh else ""
+    url_val = escape(wh["url"]) if wh else ""
 
     return f"""<div id="modal-overlay" class="modal-overlay" onclick="closeModal(event)">
   <div class="modal-content" onclick="event.stopPropagation()">
@@ -145,10 +146,10 @@ def _webhook_modal_form(wh: dict | None = None) -> str:
 def _webhook_chip_html(wh: dict) -> str:
     name = wh["name"]
     safe = _safe_id(name)
-    esc_name = html.escape(name)
-    delete_url = f'/webhooks/{name}'
-    test_url = f'/webhooks/{name}/test'
-    edit_url = f'/webhooks/{name}/edit'
+    esc_name = escape(name)
+    delete_url = f'/webhooks/{esc_name}'
+    test_url = f'/webhooks/{esc_name}/test'
+    edit_url = f'/webhooks/{esc_name}/edit'
     return f"""<div class="webhook-chip" id="wh-{safe}">
   <span class="wh-name">{esc_name}</span>
   <button class="btn-icon btn-icon-xs" hx-get="{edit_url}" hx-target="#modal-area" hx-swap="innerHTML" title="Edit">&#x270e;</button>
@@ -508,13 +509,8 @@ async def list_alarms(sort: str = "time_asc"):
 
 def _form_html(alarm: dict | None = None) -> str:
     webhooks = read_json("webhooks")
-    wh_options = "".join(
-        f'<option value="{html.escape(w["name"])}"{" selected" if alarm and alarm["webhook_name"]==w["name"] else ""}>{html.escape(w["name"])}</option>'
-        for w in webhooks
-    )
-    tz_list = "".join(
-        f'<option value="{tz}"></option>' for tz in TIMEZONES
-    )
+    selected = alarm["webhook_name"] if alarm else ""
+    wh_options = webhook_options(webhooks, selected)
     tz_val = alarm["timezone"] if alarm else "UTC"
     day_checks = "".join(
         f"""<label class="day-check"><input type="checkbox" name="days" value="{d}"{" checked" if not alarm or d in alarm["days"] else ""}>{d[:3]}</label>"""
@@ -522,20 +518,16 @@ def _form_html(alarm: dict | None = None) -> str:
     )
 
     is_edit = alarm is not None
-    action = f'/alarms/{alarm["id"]}' if is_edit else "/alarms"
+    action = f'/alarms/{escape(alarm["id"])}' if is_edit else "/alarms"
     method = "hx-put" if is_edit else "hx-post"
     title = "Edit Alarm" if is_edit else "New Alarm"
-    name_val = alarm["name"] if alarm else ""
+    name_val = escape(alarm["name"]) if alarm else ""
     msg_val = alarm["message"] if alarm else ""
     msg_len = len(msg_val)
-    time_val = alarm["time"] if alarm else "09:00"
+    time_val = escape(alarm["time"]) if alarm else "09:00"
     msg_type = alarm["message_type"] if alarm else "text"
-    embed_title = ((alarm["embed"] or {}).get("title") or "") if alarm else ""
-    embed_color = (alarm["embed"] or {}).get("color", "#5865F2") if alarm else "#5865F2"
-
-    text_checked = 'checked' if msg_type == 'text' else ''
-    embed_checked = 'checked' if msg_type == 'embed' else ''
-    embed_visible = '' if msg_type == 'embed' else 'style="display:none"'
+    embed = alarm["embed"] if alarm else None
+    hidden_id = escape(alarm["id"]) if alarm else ""
 
     return f"""<div id="modal-overlay" class="modal-overlay" onclick="closeModal(event)">
   <div class="modal-content" onclick="event.stopPropagation()">
@@ -544,7 +536,7 @@ def _form_html(alarm: dict | None = None) -> str:
       <button class="btn-icon" onclick="closeModal()">&times;</button>
     </div>
     <form {method}="{action}" hx-target="#alarm-list" hx-swap="innerHTML">
-      <input type="hidden" name="id" value="{alarm["id"] if alarm else ""}">
+      <input type="hidden" name="id" value="{hidden_id}">
 
       <label>Name</label>
       <input type="text" name="name" value="{name_val}" required maxlength="100">
@@ -555,26 +547,7 @@ def _form_html(alarm: dict | None = None) -> str:
         {wh_options}
       </select>
 
-      <label>Message <span class="hint">(Discord markdown supported)</span></label>
-      <textarea name="message" rows="4" required maxlength="2000">{msg_val}</textarea>
-      <div id="char-count" class="char-count">{msg_len} / 2000</div>
-      <div id="preview-area" class="preview-box"></div>
-
-      <div class="msg-type-row">
-        <label class="radio-label"><input type="radio" name="message_type" value="text" {text_checked} onchange="toggleEmbed(this)"> Plain text</label>
-        <label class="radio-label"><input type="radio" name="message_type" value="embed" {embed_checked} onchange="toggleEmbed(this)"> Rich embed</label>
-      </div>
-
-      <div id="embed-fields" class="embed-fields" {embed_visible}>
-        <label>Embed title (optional)</label>
-        <input type="text" name="embed_title" value="{embed_title}" maxlength="256">
-
-        <label>Embed color</label>
-        <div class="color-row">
-          <input type="color" name="embed_color" value="{embed_color}">
-          <input type="text" class="color-text" value="{embed_color}" maxlength="7" oninput="this.previousElementSibling.value=this.value">
-        </div>
-      </div>
+      {message_fields(msg_val, msg_type, embed, msg_len)}
 
       <label>Time</label>
       <input type="time" name="time" value="{time_val}" required>
@@ -582,9 +555,7 @@ def _form_html(alarm: dict | None = None) -> str:
       <label>Days of week</label>
       <div class="days-row">{day_checks}</div>
 
-      <label>Timezone</label>
-      <input type="text" name="timezone" list="tz-list" value="{tz_val}" required>
-      <datalist id="tz-list">{tz_list}</datalist>
+      {timezone_input(tz_val, TIMEZONES)}
 
       <div class="modal-actions">
         <button type="button" class="btn" onclick="closeModal()">Cancel</button>

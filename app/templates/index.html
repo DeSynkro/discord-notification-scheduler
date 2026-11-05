@@ -59,7 +59,7 @@
       <div class="section-header">
         <h2>&#x23f0; Alarms</h2>
         <div style="display:flex;gap:0.5rem;align-items:center">
-        <select class="btn btn-sm sort-select" name="sort"
+        <select id="sort-select" class="btn btn-sm sort-select" name="sort"
                 hx-get="/alarms" hx-target="#alarm-list" hx-swap="innerHTML"
                 hx-trigger="change">
           <option value="created">Newest</option>
