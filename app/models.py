@@ -2,7 +2,7 @@ import re
 from uuid import uuid4
 from datetime import datetime, timezone
 from pydantic import BaseModel, field_validator, Field
-from typing import Optional
+from typing import Literal, Optional
 from zoneinfo import available_timezones
 
 TIMEZONE_SET = available_timezones()
@@ -88,3 +88,68 @@ class Alarm(BaseModel):
         if v not in ("text", "embed"):
             raise ValueError("message_type must be 'text' or 'embed'")
         return v
+
+
+CALENDAR_REPEATS = ("none", "daily", "weekly", "monthly", "yearly")
+
+
+class CalendarAlert(BaseModel):
+    id: str = Field(default_factory=lambda: uuid4().hex[:12])
+    name: str = Field(..., min_length=1, max_length=100)
+    webhook_name: str = Field(..., min_length=1, max_length=100)
+    message: str = Field(..., min_length=1, max_length=2000)
+    message_type: str = "text"
+    embed: Optional[EmbedConfig] = None
+    date: str
+    time: str = Field(..., pattern=r"^([01]\d|2[0-3]):([0-5]\d)$")
+    timezone: str = "UTC"
+    repeat: str = "none"
+    enabled: bool = True
+    created: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    next_fire: Optional[str] = None
+    last_fired: Optional[str] = None
+    last_error: Optional[str] = None
+
+    @field_validator("date")
+    @classmethod
+    def check_date(cls, v):
+        if not isinstance(v, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", v):
+            raise ValueError("Date must be YYYY-MM-DD")
+        try:
+            datetime.strptime(v, "%Y-%m-%d")
+        except ValueError:
+            raise ValueError("Date must be a real calendar date")
+        return v
+
+    @field_validator("repeat")
+    @classmethod
+    def check_repeat(cls, v):
+        if v not in CALENDAR_REPEATS:
+            raise ValueError("repeat must be one of: " + ", ".join(CALENDAR_REPEATS))
+        return v
+
+    @field_validator("timezone")
+    @classmethod
+    def check_timezone(cls, v):
+        if v not in TIMEZONE_SET:
+            raise ValueError(f"'{v}' is not a valid timezone")
+        return v
+
+    @field_validator("message_type")
+    @classmethod
+    def check_type(cls, v):
+        if v not in ("text", "embed"):
+            raise ValueError("message_type must be 'text' or 'embed'")
+        return v
+
+
+class LogEntry(BaseModel):
+    ts: str
+    kind: Literal["weekly", "calendar", "test"]
+    source_id: Optional[str] = None
+    name: str
+    webhook_name: str
+    timezone: str = "UTC"
+    status: Literal["ok", "err"]
+    error: Optional[str] = None
+    preview: str
