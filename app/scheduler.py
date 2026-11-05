@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from app.discord import deliver
-from app.models import Alarm, CalendarAlert
+from app.models import Alarm, CalendarAlert, DAYS_OF_WEEK
 from app.recurrence import compute_next_fire
 from app.storage import read_json, write_json
 
@@ -29,114 +29,160 @@ def _reset_minute(now: datetime) -> None:
         _last_poll_key = key
 
 
+def _update_record(
+    kind: str,
+    record_id: str,
+    *,
+    expect_next_fire: str | None = None,
+    **fields,
+) -> bool:
+    """Update only one record, re-reading the file first.
+
+    This avoids overwriting edits that happened while a delivery was in
+    flight. When expect_next_fire is given, the update is skipped if the
+    stored next_fire no longer matches it, meaning the user edited or
+    disabled the alert mid-delivery.
+    """
+    rows = read_json(kind)
+    for row in rows:
+        if row.get("id") != record_id:
+            continue
+        if expect_next_fire is not None and row.get("next_fire") != expect_next_fire:
+            return False
+        row.update(fields)
+        write_json(kind, rows)
+        return True
+    return False
+
+
 async def _poll_weekly(now: datetime) -> None:
     _reset_minute(now)
-    raw = read_json("alarms")
-    changed = False
 
-    for item in raw:
+    for item in read_json("alarms"):
         try:
             alarm = Alarm(**item)
+            if not alarm.enabled:
+                continue
+
+            try:
+                tz = ZoneInfo(alarm.timezone)
+            except (KeyError, ValueError):
+                tz = dt_timezone.utc
+            local_now = now.astimezone(tz)
+
+            if local_now.strftime("%H:%M") != alarm.time:
+                continue
+            if DAYS_OF_WEEK[local_now.weekday()] not in alarm.days:
+                continue
+
+            # A fall-back DST transition repeats the same wall-clock time
+            # twice in one local day. Do not send it twice.
+            last_fired = item.get("last_fired")
+            if last_fired:
+                try:
+                    last_local = datetime.fromisoformat(last_fired).astimezone(tz)
+                    if (
+                        last_local.date() == local_now.date()
+                        and last_local.strftime("%H:%M") == alarm.time
+                    ):
+                        continue
+                except Exception:
+                    pass
+
+            key = f"alarm:{alarm.id}"
+            if key in _sent_this_minute:
+                continue
+            _sent_this_minute.add(key)
+
+            success, err = await deliver(alarm, "weekly", alarm.id)
+            if success:
+                _update_record(
+                    "alarms", alarm.id,
+                    last_fired=now.isoformat(), last_error=None,
+                )
+            else:
+                _update_record("alarms", alarm.id, last_error=err)
         except Exception:
+            # One bad record must never stop the rest of the pass.
             continue
-
-        if not alarm.enabled:
-            continue
-
-        try:
-            tz = ZoneInfo(alarm.timezone)
-        except (KeyError, ValueError):
-            tz = dt_timezone.utc
-        local_now = now.astimezone(tz)
-
-        if local_now.strftime("%H:%M") != alarm.time:
-            continue
-
-        if local_now.strftime("%A") not in alarm.days:
-            continue
-
-        key = f"alarm:{alarm.id}"
-        if key in _sent_this_minute:
-            continue
-        _sent_this_minute.add(key)
-
-        success, err = await deliver(alarm, "weekly", alarm.id)
-        if success:
-            item["last_fired"] = now.isoformat()
-            item["last_error"] = None
-        else:
-            item["last_error"] = err
-        changed = True
-
-    if changed:
-        write_json("alarms", raw)
 
 
 async def _poll_calendar(now: datetime) -> None:
     _reset_minute(now)
-    raw = read_json("calendar")
-    changed = False
 
-    for item in raw:
+    for item in read_json("calendar"):
         try:
             alert = CalendarAlert(**item)
+            if not alert.enabled:
+                continue
+
+            anchor_date = dt_date.fromisoformat(alert.date)
+            anchor_time = dt_time.fromisoformat(alert.time)
+
+            try:
+                next_fire = datetime.fromisoformat(item["next_fire"])
+                if next_fire.tzinfo is None:
+                    next_fire = next_fire.replace(tzinfo=dt_timezone.utc)
+                next_fire = next_fire.astimezone(dt_timezone.utc)
+            except (KeyError, TypeError, ValueError):
+                nxt = compute_next_fire(
+                    anchor_date, anchor_time, alert.timezone, alert.repeat,
+                    after_utc=now,
+                )
+                fields = {"next_fire": nxt}
+                if nxt is None:
+                    fields["enabled"] = False
+                _update_record(
+                    "calendar", alert.id,
+                    expect_next_fire=item.get("next_fire"),
+                    **fields,
+                )
+                continue
+
+            if next_fire > now:
+                continue
+
+            if now - next_fire > timedelta(minutes=5):
+                nxt = compute_next_fire(
+                    anchor_date, anchor_time, alert.timezone, alert.repeat,
+                    after_utc=now,
+                )
+                fields = {"next_fire": nxt}
+                if nxt is None:
+                    fields["enabled"] = False
+                _update_record(
+                    "calendar", alert.id,
+                    expect_next_fire=item.get("next_fire"),
+                    **fields,
+                )
+                continue
+
+            key = f"calendar:{alert.id}"
+            if key in _sent_this_minute:
+                continue
+            _sent_this_minute.add(key)
+
+            success, err = await deliver(alert, "calendar", alert.id)
+            nxt = compute_next_fire(
+                anchor_date, anchor_time, alert.timezone, alert.repeat,
+                after_utc=next_fire,
+            )
+            fields = {"next_fire": nxt}
+            if success:
+                fields["last_fired"] = now.isoformat()
+                fields["last_error"] = None
+            else:
+                fields["last_error"] = err
+            if nxt is None:
+                fields["enabled"] = False
+
+            _update_record(
+                "calendar", alert.id,
+                expect_next_fire=item.get("next_fire"),
+                **fields,
+            )
         except Exception:
             continue
-
-        if not alert.enabled:
-            continue
-
-        anchor_date = dt_date.fromisoformat(alert.date)
-        anchor_time = dt_time.fromisoformat(alert.time)
-
-        try:
-            next_fire = datetime.fromisoformat(item["next_fire"])
-            if next_fire.tzinfo is None:
-                next_fire = next_fire.replace(tzinfo=dt_timezone.utc)
-            next_fire = next_fire.astimezone(dt_timezone.utc)
-        except (KeyError, TypeError, ValueError):
-            item["next_fire"] = compute_next_fire(
-                anchor_date, anchor_time, alert.timezone, alert.repeat,
-                after_utc=now,
-            )
-            changed = True
-            continue
-
-        if next_fire > now:
-            continue
-
-        if now - next_fire > timedelta(minutes=5):
-            item["next_fire"] = compute_next_fire(
-                anchor_date, anchor_time, alert.timezone, alert.repeat,
-                after_utc=now,
-            )
-            if item["next_fire"] is None:
-                item["enabled"] = False
-            changed = True
-            continue
-
-        key = f"calendar:{alert.id}"
-        if key in _sent_this_minute:
-            continue
-        _sent_this_minute.add(key)
-
-        success, err = await deliver(alert, "calendar", alert.id)
-        if success:
-            item["last_fired"] = now.isoformat()
-            item["last_error"] = None
-        else:
-            item["last_error"] = err
-
-        item["next_fire"] = compute_next_fire(
-            anchor_date, anchor_time, alert.timezone, alert.repeat,
-            after_utc=next_fire,
-        )
-        if item["next_fire"] is None:
-            item["enabled"] = False
-        changed = True
-
-    if changed:
-        write_json("calendar", raw)
 
 
 def recompute_all(now: datetime | None = None) -> None:

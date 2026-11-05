@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.models import CALENDAR_REPEATS, CalendarAlert, LogEntry
+from app.models import CALENDAR_REPEATS, Alarm, CalendarAlert, LogEntry, Webhook
 
 
 def _base(**overrides):
@@ -74,6 +74,34 @@ def test_calendar_alert_accepts_color():
 def test_calendar_alert_rejects_bad_color():
     with pytest.raises(ValidationError):
         CalendarAlert(**_base(color="orange"))
+
+
+def test_calendar_alert_rejects_too_old_date():
+    with pytest.raises(ValidationError):
+        CalendarAlert(**_base(date="1899-12-31"))
+
+
+def test_calendar_alert_rejects_too_far_date():
+    with pytest.raises(ValidationError):
+        CalendarAlert(**_base(date="2201-01-01"))
+
+
+def test_webhook_rejects_path_characters():
+    with pytest.raises(ValidationError):
+        Webhook(
+            name="ops/team",
+            url="https://discord.com/api/webhooks/123456789012345678/abc",
+        )
+
+
+def test_calendar_alert_rejects_bad_id():
+    with pytest.raises(ValidationError):
+        CalendarAlert(**_base(id="bad/id"))
+
+
+def test_alarm_rejects_bad_id():
+    with pytest.raises(ValidationError):
+        Alarm(id="bad/id", name="x", webhook_name="g", message="m", time="09:00")
 
 
 def test_log_entry_accepts_valid_values():

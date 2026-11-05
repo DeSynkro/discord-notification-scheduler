@@ -1,6 +1,6 @@
 import re
 from uuid import uuid4
-from datetime import datetime, timezone
+from datetime import date as dt_date, datetime, timezone
 from pydantic import BaseModel, field_validator, Field
 from typing import Literal, Optional
 from zoneinfo import available_timezones
@@ -39,6 +39,13 @@ class Webhook(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     url: str
 
+    @field_validator("name")
+    @classmethod
+    def check_name(cls, v):
+        if any(ch in v for ch in "/?#%"):
+            raise ValueError("Webhook name cannot contain / ? # %")
+        return v
+
     @field_validator("url")
     @classmethod
     def check_url(cls, v):
@@ -51,7 +58,10 @@ class Webhook(BaseModel):
 
 
 class Alarm(BaseModel):
-    id: str = Field(default_factory=lambda: uuid4().hex[:12])
+    id: str = Field(
+        default_factory=lambda: uuid4().hex[:12],
+        pattern=r"^[A-Za-z0-9_-]+$",
+    )
     name: str = Field(..., min_length=1, max_length=100)
     webhook_name: str = Field(..., min_length=1)
     message: str = Field(..., min_length=1, max_length=2000)
@@ -94,7 +104,10 @@ CALENDAR_REPEATS = ("none", "daily", "weekly", "monthly", "yearly")
 
 
 class CalendarAlert(BaseModel):
-    id: str = Field(default_factory=lambda: uuid4().hex[:12])
+    id: str = Field(
+        default_factory=lambda: uuid4().hex[:12],
+        pattern=r"^[A-Za-z0-9_-]+$",
+    )
     name: str = Field(..., min_length=1, max_length=100)
     webhook_name: str = Field(..., min_length=1, max_length=100)
     message: str = Field(..., min_length=1, max_length=2000)
@@ -117,9 +130,11 @@ class CalendarAlert(BaseModel):
         if not isinstance(v, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", v):
             raise ValueError("Date must be YYYY-MM-DD")
         try:
-            datetime.strptime(v, "%Y-%m-%d")
+            parsed = datetime.strptime(v, "%Y-%m-%d").date()
         except ValueError:
             raise ValueError("Date must be a real calendar date")
+        if parsed < dt_date(1900, 1, 1) or parsed > dt_date(2200, 12, 31):
+            raise ValueError("Date must be between 1900-01-01 and 2200-12-31")
         return v
 
     @field_validator("repeat")

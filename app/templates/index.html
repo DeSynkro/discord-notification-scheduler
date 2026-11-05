@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/static/favicon/apple-touch-icon.png">
-  <link rel="stylesheet" href="/static/style.css?v=1.5.4">
+  <link rel="stylesheet" href="/static/style.css?v=1.5.5">
   <script src="/static/htmx.min.js"></script>
 </head>
 <body>
@@ -50,6 +50,7 @@
       </div>
       <div class="delete-all">
         <a hx-delete="/webhooks" hx-target="#webhook-list" hx-swap="innerHTML"
+           tabindex="0" role="button" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}"
            hx-confirm="Delete all webhooks? Alarms using them will be marked as deleted. This cannot be undone.">Delete all webhooks</a>
       </div>
     </section>
@@ -72,7 +73,7 @@
                 hx-trigger="change">
           <option value="created">Newest</option>
           <option value="created_asc">Oldest</option>
-          <option value="time_asc">Time &#x2191;</option>
+          <option value="time_asc" selected>Time &#x2191;</option>
           <option value="time_desc">Time &#x2193;</option>
           <option value="name">Name</option>
           <option value="name_desc">Name &#x2193;</option>
@@ -89,6 +90,7 @@
       </div>
       <div class="delete-all">
         <a hx-delete="/alarms" hx-target="#alarm-list" hx-swap="innerHTML"
+           tabindex="0" role="button" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}"
            hx-confirm="Delete all alarms? This cannot be undone.">Delete all alarms</a>
       </div>
     </section>
@@ -107,7 +109,7 @@
     <section class="section" id="view-log">
       <div class="section-header">
         <h2>&#x1f4dc; Notification Log</h2>
-        <a class="log-clear" hx-delete="/log" hx-swap="none" hx-confirm="Clear the notification log?">Clear log</a>
+        <a class="log-clear" hx-delete="/log" hx-swap="none" hx-confirm="Clear the notification log?" tabindex="0" role="button" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}">Clear log</a>
       </div>
       <div id="log-view" hx-get="/log" hx-trigger="every 60s, refresh-lists from:body" hx-include="#log-page" hx-disinherit="hx-include" hx-swap="innerHTML">
         {{ log_html | safe }}
@@ -128,6 +130,10 @@
       if (e && e.target !== e.currentTarget) return;
       document.getElementById('modal-area').innerHTML = '';
     }
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') closeModal();
+    });
 
     function toggleEmbed(radio) {
       const fields = document.getElementById('embed-fields');
@@ -152,6 +158,8 @@
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
         .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
         .replace(/`([^`]+)`/g, '<code>$1</code>')
         .replace(/^###### (.+)$/gm, '<h6>$1</h6>')
@@ -169,7 +177,10 @@
         .replace(/\*(.+?)\*/g, '<em>$1</em>')
         .replace(/~~(.+?)~~/g, '<del>$1</del>')
         .replace(/\|\|(.+?)\|\|/g, '<span class="spoiler">$1</span>')
-        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>')
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, function(m, text, url) {
+          if (!/^(https?:\/\/|mailto:)/i.test(url)) return text;
+          return '<a href="' + url + '" target="_blank" rel="noopener noreferrer">' + text + '</a>';
+        })
         .replace(/\n/g, '<br>');
       preview.innerHTML = html;
       preview.style.display = 'block';
@@ -265,8 +276,7 @@
         showToast(msg, e.detail.xhr.getResponseHeader('X-Toast-Type') || 'ok');
       }
       var target = e.detail.target;
-      if (target && (target.id === 'alarm-list' || target.id === 'webhook-list')) {
-        if (_staggered) return;
+      if (target && (target.id === 'alarm-list' || target.id === 'webhook-list') && !_staggered) {
         _staggered = true;
         Array.from(target.children).forEach(function(child, i) {
           child.style.animationDelay = (i * 0.04) + 's';

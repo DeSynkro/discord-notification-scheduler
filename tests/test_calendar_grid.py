@@ -12,19 +12,34 @@ def seeded_data(tmp_data, monkeypatch):
         "name": "general",
         "url": "https://discord.com/api/webhooks/123456789012345678/abc",
     }])
-    write_json("alarms", [{
-        "id": "alarm0000001",
-        "name": "Weekly report",
-        "webhook_name": "general",
-        "message": "m",
-        "message_type": "text",
-        "embed": None,
-        "time": "10:00",
-        "days": ["Monday"],
-        "timezone": "UTC",
-        "enabled": True,
-        "created": "2026-01-01T00:00:00+00:00",
-    }])
+    write_json("alarms", [
+        {
+            "id": "alarm0000001",
+            "name": "Weekly report",
+            "webhook_name": "general",
+            "message": "m",
+            "message_type": "text",
+            "embed": None,
+            "time": "10:00",
+            "days": ["Monday"],
+            "timezone": "UTC",
+            "enabled": True,
+            "created": "2026-01-01T00:00:00+00:00",
+        },
+        {
+            "id": "alarm0000002",
+            "name": "Late NY",
+            "webhook_name": "general",
+            "message": "m",
+            "message_type": "text",
+            "embed": None,
+            "time": "23:30",
+            "days": ["Monday"],
+            "timezone": "America/New_York",
+            "enabled": True,
+            "created": "2026-01-01T00:00:00+00:00",
+        },
+    ])
     write_json("calendar", [
         {
             "id": "cal000000001",
@@ -110,6 +125,33 @@ def test_grid_uses_alert_color(client, seeded_data):
 def test_month_navigation_returns_other_month(client, seeded_data):
     html = client.get("/calendar?month=2026-10").text
     assert "October 2026" in html
+
+
+def test_new_alert_prefills_viewed_month(client, seeded_data):
+    html = client.get("/calendar?month=2026-12").text
+    assert "/calendar/new?date=2026-12-01" in html
+
+
+def test_weekly_alarm_uses_display_timezone(client, seeded_data):
+    html = client.get("/calendar?month=2026-11&show_weekly=1").text
+    assert "Late NY" in html
+    assert "04:30" in html
+
+
+def test_extreme_month_is_clamped(client):
+    low = client.get("/calendar?month=0001-01")
+    high = client.get("/calendar?month=9999-12")
+    assert low.status_code == 200
+    assert high.status_code == 200
+    assert "January 1900" in low.text
+    assert "December 2200" in high.text
+
+
+def test_extreme_day_is_clamped(client):
+    low = client.get("/calendar/day?date=0001-01-01")
+    high = client.get("/calendar/day?date=9999-12-31")
+    assert low.status_code == 200
+    assert high.status_code == 200
 
 
 def test_other_month_is_dimmed(client, seeded_data):

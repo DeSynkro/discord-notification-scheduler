@@ -201,6 +201,8 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
+  max-width: 100%;
+  min-width: 0;
   padding: 0.35rem 0.7rem;
   background: rgba(22, 27, 34, 0.7);
   backdrop-filter: blur(6px);
@@ -214,6 +216,10 @@ body {
 .webhook-chip .wh-name {
   font-weight: 500;
   color: var(--text);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .webhook-chip:hover {
@@ -254,7 +260,7 @@ body {
 
 .alarm-info {
   flex: 1;
-  min-width: 180px;
+  min-width: 0;
 }
 
 .alarm-info strong {
@@ -262,6 +268,7 @@ body {
   font-size: 1rem;
   color: var(--text-bright);
   font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
 .alarm-meta {
@@ -269,6 +276,7 @@ body {
   color: var(--text-dim);
   margin-top: 0.15rem;
   display: block;
+  overflow-wrap: anywhere;
 }
 
 .alarm-badges {
@@ -341,6 +349,10 @@ body {
 
 .toggle input:checked + .slider {
   background: var(--primary);
+}
+
+.toggle input:focus-visible + .slider {
+  box-shadow: 0 0 0 2px var(--primary-glow);
 }
 
 .toggle input:checked + .slider::before {
@@ -513,6 +525,7 @@ body {
 .modal-content input[type="text"],
 .modal-content input[type="url"],
 .modal-content input[type="time"],
+.modal-content input[type="date"],
 .modal-content select,
 .modal-content textarea {
   width: 100%;
@@ -1298,6 +1311,16 @@ body {
   .cal-month { min-width: 7rem; font-size: 0.8rem; }
   .log-time { width: 5.5rem; }
   .field-row { flex-direction: column; gap: 0; }
+}
+
+@media (max-width: 480px) {
+  .toast-container {
+    top: auto;
+    bottom: 0.75rem;
+    left: 0.75rem;
+    right: 0.75rem;
+    max-width: none;
+  }
 }
 
 /* Reduced motion */

@@ -27,10 +27,18 @@ def read_json(kind: str) -> list[dict]:
     try:
         with open(path, "r") as f:
             data = json.load(f)
-            return data if isinstance(data, list) else []
-    except (json.JSONDecodeError, OSError):
+    except (ValueError, OSError):
         _backup_corrupt(path, kind)
         return []
+
+    if not isinstance(data, list):
+        _backup_corrupt(path, kind)
+        return []
+
+    valid = [item for item in data if isinstance(item, dict)]
+    if len(valid) != len(data):
+        _backup_corrupt(path, kind)
+    return valid
 
 
 def write_json(kind: str, data: list[dict]) -> None:

@@ -1,5 +1,56 @@
 # Changelog
 
+## 1.5.1
+
+### Fixed
+- Scheduler read-modify-write could overwrite edits made while a delivery was
+  in flight. It now re-reads and updates only the record that fired.
+- One malformed record could stop the rest of a scheduler pass. Each record is
+  now isolated.
+- Renaming or deleting a webhook now updates calendar alerts that use it.
+- Invalid UTF-8, non-list JSON, and non-object rows in data files can no longer
+  crash reads. Corrupt files are backed up.
+- Import rejects non-list `webhooks`, `alarms`, or `calendar` instead of
+  returning a 500 or wiping existing data. Replace with an empty backup now
+  clears correctly.
+- Re-enabling a calendar alert recomputes its next occurrence. Expired one-time
+  alerts stay disabled.
+- Weekly alarms no longer double-fire on a DST fall-back, and weekday matching
+  no longer depends on the system locale.
+- Calendar events, including weekly alarms, are converted to the host timezone
+  for placement and display.
+- Extreme calendar months and days are clamped instead of returning 500.
+- Emoji and other non-latin-1 text in names or validation messages no longer
+  crash the response. Toast headers are sanitized.
+- Alarm edits preserve the original `created` timestamp.
+- Alarm test failures store `last_error`; successful tests clear it.
+- A 100-character webhook name can be tested.
+- Empty weekday selection is rejected instead of silently becoming every day.
+- Calendar alert IDs and webhook names that would break URL paths are rejected
+  on input.
+- The markdown preview blocks `javascript:` links and quote-based attribute
+  injection.
+- Date inputs use the dark form styling.
+- Long webhook and alarm names no longer break the page layout.
+- Toasts no longer cover the mobile header.
+- Escape closes the modal.
+- Calendar events and day cells can be activated with the keyboard, and the
+  delete-all and clear-log links are focusable.
+- Calendar refreshes after alarm create, edit, toggle, or delete.
+- The alarm sort selector starts on Time ascending and syncs correctly.
+- The calendar's `+ New Alert` button uses the month currently on screen.
+- The color picker and its hex field stay in sync, and pill text stays readable
+  on dark colors.
+- Webhook deletion targets the closest chip, avoiding duplicate-id collisions.
+
+### Notes
+- Existing webhook names containing `/`, `?`, `#`, or `%` remain unreachable
+  until renamed.
+- The calendar month and log page still reset on a full reload.
+- Hidden views still poll every 60 seconds.
+- The enabled toggle in the calendar edit modal is applied immediately; Cancel
+  does not revert it.
+
 ## 1.5.0
 
 ### Added

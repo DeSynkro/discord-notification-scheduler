@@ -9,6 +9,12 @@ def escape(value) -> str:
     return html.escape("" if value is None else str(value), quote=True)
 
 
+def header_text(value) -> str:
+    text = " ".join(str(value).split())
+    safe = text.encode("latin-1", "replace").decode("latin-1")
+    return (safe or "Something went wrong")[:300]
+
+
 def webhook_options(webhooks: list[dict], selected: str = "") -> str:
     parts = []
     for webhook in webhooks:
@@ -56,7 +62,7 @@ def message_fields(
 
         <label>Embed color</label>
         <div class="color-row">
-          <input type="color" name="embed_color" value="{color}">
+          <input type="color" name="embed_color" value="{color}" oninput="this.nextElementSibling.value=this.value">
           <input type="text" class="color-text" value="{color}" maxlength="7" oninput="this.previousElementSibling.value=this.value">
         </div>
       </div>"""
