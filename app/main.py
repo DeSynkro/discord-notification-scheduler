@@ -17,6 +17,7 @@ from zoneinfo import ZoneInfo
 from app.models import Alarm, DAYS_OF_WEEK, TIMEZONES, Webhook
 from app.storage import read_json, write_json
 from app.render import escape, message_fields, timezone_input, webhook_options
+from app.calendar_alerts import router as calendar_router
 from app.scheduler import start as start_scheduler, stop as stop_scheduler
 from app.discord import send_webhook
 
@@ -32,6 +33,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+app.include_router(calendar_router)
 
 templates_dir = Path(__file__).resolve().parent / "templates"
 templates = Jinja2Templates(directory=str(templates_dir))
