@@ -935,6 +935,27 @@ body {
   gap: 0.4rem;
 }
 
+.cal-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.cal-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.cal-toggle input {
+  accent-color: var(--primary);
+}
+
 .cal-month {
   min-width: 9.5rem;
   text-align: center;
@@ -942,31 +963,6 @@ body {
   font-size: 0.9rem;
   color: var(--text-bright);
 }
-
-.cal-legend {
-  display: flex;
-  gap: 1rem;
-  font-size: 0.72rem;
-  color: var(--text-dim);
-  margin-bottom: 0.6rem;
-  padding-left: 0.15rem;
-}
-
-.cal-legend span {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.cal-legend .dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  display: inline-block;
-}
-
-.cal-legend .dot.weekly { background: var(--primary); }
-.cal-legend .dot.dated { background: var(--success); }
 
 .calendar {
   background: rgba(22, 27, 34, 0.75);
@@ -980,6 +976,7 @@ body {
 .cal-weekdays {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
+  min-width: 0;
   background: rgba(13, 17, 23, 0.6);
   border-bottom: 1px solid rgba(48, 54, 61, 0.6);
 }
@@ -997,16 +994,19 @@ body {
 .cal-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
+  min-width: 0;
 }
 
 .cal-day {
   position: relative;
+  min-width: 0;
   min-height: 96px;
   padding: 0.35rem 0.4rem 0.45rem;
   border-right: 1px solid rgba(48, 54, 61, 0.45);
   border-bottom: 1px solid rgba(48, 54, 61, 0.45);
   transition: background var(--transition);
   cursor: pointer;
+  overflow: hidden;
 }
 
 .cal-day:nth-child(7n) { border-right: none; }
@@ -1038,10 +1038,13 @@ body {
   flex-direction: column;
   gap: 0.18rem;
   margin-top: 0.2rem;
+  min-width: 0;
 }
 
 .cal-event {
   display: block;
+  min-width: 0;
+  max-width: 100%;
   font-size: 0.66rem;
   line-height: 1.35;
   padding: 0.1rem 0.3rem;
@@ -1062,10 +1065,14 @@ body {
   color: #a5b4fc;
 }
 
-.cal-event.dated {
+.cal-event.calendar {
   background: rgba(63, 185, 80, 0.13);
   border-color: var(--success);
   color: #86efac;
+}
+
+.cal-event.disabled {
+  opacity: 0.45;
 }
 
 .cal-add {
@@ -1146,7 +1153,7 @@ body {
 
 .log-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.75rem;
   padding: 0.55rem 0.9rem;
   border-top: 1px solid rgba(48, 54, 61, 0.45);
@@ -1175,11 +1182,19 @@ body {
 }
 
 .log-meta {
+  display: block;
   font-size: 0.72rem;
   color: var(--text-dim);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+}
+
+.log-preview {
+  display: block;
+  margin-top: 0.1rem;
+  font-size: 0.78rem;
+  color: var(--text);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .log-kind {
@@ -1206,7 +1221,14 @@ body {
 }
 
 .log-kind.test { color: var(--text-dim); }
-.log-error { color: var(--danger); }
+
+.log-error {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.72rem;
+  color: var(--danger);
+  overflow-wrap: anywhere;
+}
 
 .log-clear {
   font-size: 0.75rem;
@@ -1218,6 +1240,25 @@ body {
 }
 
 .log-clear:hover { opacity: 1; color: var(--danger); }
+
+.log-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding: 0 0.15rem;
+}
+
+.log-page-label {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.btn[disabled] {
+  opacity: 0.4;
+  cursor: default;
+}
 
 /* Calendar modal extras */
 .btn-danger {

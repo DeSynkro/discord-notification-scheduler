@@ -100,6 +100,7 @@ class CalendarAlert(BaseModel):
     message: str = Field(..., min_length=1, max_length=2000)
     message_type: str = "text"
     embed: Optional[EmbedConfig] = None
+    color: str = "#3FB950"
     date: str
     time: str = Field(..., pattern=r"^([01]\d|2[0-3]):([0-5]\d)$")
     timezone: str = "UTC"
@@ -141,6 +142,13 @@ class CalendarAlert(BaseModel):
         if v not in ("text", "embed"):
             raise ValueError("message_type must be 'text' or 'embed'")
         return v
+
+    @field_validator("color")
+    @classmethod
+    def check_color(cls, v):
+        if not isinstance(v, str) or not re.match(r"^#[0-9a-fA-F]{6}$", v):
+            raise ValueError("Color must be a hex value like #3FB950")
+        return v.upper()
 
 
 class LogEntry(BaseModel):

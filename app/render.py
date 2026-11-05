@@ -62,13 +62,22 @@ def message_fields(
       </div>"""
 
 
-def render_log(limit: int = 50) -> str:
-    rows = read_log(limit)
-    if not rows:
-        return '<span class="empty">No notifications logged yet</span>'
+def render_log(page: int = 1, page_size: int = 10) -> str:
+    rows = read_log()
+    total = len(rows)
+    if total == 0:
+        return (
+            '<input type="hidden" id="log-page" name="page" value="1">'
+            '<span class="empty">No notifications logged yet</span>'
+        )
+
+    pages = max(1, (total + page_size - 1) // page_size)
+    page = min(max(1, page), pages)
+    start = (page - 1) * page_size
+    page_rows = rows[start:start + page_size]
 
     parts = []
-    for row in rows:
+    for row in page_rows:
         kind = row.get("kind", "")
         kind_label = {
             "weekly": "Weekly",
@@ -91,19 +100,41 @@ def render_log(limit: int = 50) -> str:
             else '<span class="badge badge-err">Failed</span>'
         )
         meta = (
-            f'{escape(row.get("webhook_name", ""))} &middot; '
-            f'{escape(row.get("preview", ""))}'
+            f'<span class="log-kind {escape(kind)}">{escape(kind_label)}</span>'
+            f'{escape(row.get("webhook_name", ""))}'
         )
-        if row.get("error"):
-            meta += f' &middot; <span class="log-error">{escape(row["error"])}</span>'
+        preview = row.get("preview", "")
+        preview_html = (
+            f'<span class="log-preview">{escape(preview)}</span>' if preview else ""
+        )
+        error_html = (
+            f'<span class="log-error">{escape(row["error"])}</span>'
+            if row.get("error") else ""
+        )
 
         parts.append(f"""<div class="log-row">
   <span class="log-time">{escape(ts_label)}</span>
   <div class="log-main">
     <strong>{escape(row.get("name", ""))}</strong>
-    <span class="log-meta"><span class="log-kind {escape(kind)}">{escape(kind_label)}</span>{meta}</span>
+    <span class="log-meta">{meta}</span>
+    {preview_html}
+    {error_html}
   </div>
   {badge}
 </div>""")
 
-    return "".join(parts)
+    pager = ""
+    if pages > 1:
+        prev_disabled = " disabled" if page <= 1 else ""
+        next_disabled = " disabled" if page >= pages else ""
+        pager = f"""<div class="log-pager">
+  <button class="btn btn-sm" hx-get="/log?page={page - 1}" hx-target="#log-view" hx-swap="innerHTML" hx-trigger="click"{prev_disabled}>&#x2039; Prev</button>
+  <span class="log-page-label">Page {page} of {pages}</span>
+  <button class="btn btn-sm" hx-get="/log?page={page + 1}" hx-target="#log-view" hx-swap="innerHTML" hx-trigger="click"{next_disabled}>Next &#x203a;</button>
+</div>"""
+
+    return (
+        f'<input type="hidden" id="log-page" name="page" value="{page}">'
+        f'<div class="log-list">{"".join(parts)}</div>'
+        f'{pager}'
+    )

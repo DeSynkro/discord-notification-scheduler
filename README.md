@@ -6,7 +6,7 @@
 
 <p align="center">
   A self-hosted web app to schedule and send Discord webhook messages at specific
-  times. Runs entirely in Docker with no host dependencies.
+  times or dates. Runs entirely in Docker with no host dependencies.
 </p>
 
 <p align="center">
@@ -75,6 +75,7 @@ docker compose up --build -d
   </a>
 </p>
 
+
 ## Why this exists
 
 There are plenty of hosted services that can fire a webhook on a schedule. but
@@ -91,8 +92,8 @@ Just Docker and a JSON file you can copy with one command.
 -   **Self-hosted and private** - runs on your hardware, zero cloud
     dependencies
 -   **Zero telemetry** - no analytics, no tracking, no phone-home, no CDN
--   **Your data, your rules** - webhooks and alarms stored as plain JSON,
-    fully portable, backup by copying one folder
+-   **Your data, your rules** - webhooks, alarms, and calendar alerts stored
+    as plain JSON, fully portable, backup by copying one folder
 -   **SSRF-safe** - webhook URLs validated against Discords exact pattern;
     no arbitrary outbound requests
 -   **Minimal outbound traffic** - the only data leaving your machine is the
@@ -100,21 +101,48 @@ Just Docker and a JSON file you can copy with one command.
     hosts, no third-party servers
 -   One `docker compose up` and done
 -   Dark-themed web UI using HTMX and FastAPI
+-   Calendar alerts with one-time, daily, weekly, monthly, and yearly repeats
+-   Per-alert color picker for calendar events
+-   Show weekly alarms toggle on the calendar
+-   Month grid with month navigation and a day list
+-   Bubble navigation for alarms, calendar, and the notification log
+-   Notification log of scheduled sends and manual tests, kept locally
 -   Plain text and rich embed messages (title, optional color picker)
--   Per-alarm timezone override with searchable autocomplete
+-   Per-alert timezone override with searchable autocomplete
 -   Markdown preview in the compose form
 -   60-second polling loop, no external cron needed
 -   429 rate-limit handling with Retry-After backoff
--   Test button to fire any alarm or webhook on demand
+-   Test buttons for alarms, calendar alerts, and webhooks
+
+## Calendar alerts
+
+Switch to the **Calendar** bubble to see a month grid. Weekly alarms appear in
+blue on their weekdays. Dated alerts appear in green.
+
+-   Click a day to create an alert for that date
+-   Click an event to edit it
+-   Pick a color for each calendar alert
+-   Use the Show weekly alarms checkbox to hide or show the blue weekly
+    projections. The choice is remembered across reloads.
+-   Use the day list when a day has more than three events
+-   Fired and past calendar alerts are hidden by default; the Show past alerts
+    checkbox reveals them
+-   Repeat can be one-time, daily, weekly, monthly, or yearly
+-   One-time alerts deactivate after they fire
+-   Monthly and yearly repeats clamp to the last valid day when needed
+
+The **Log** bubble shows recent sends from weekly alarms, calendar alerts, and
+manual tests. It keeps the newest 500 entries and is not included in exports.
+Entries are shown 10 per page.
 
 ## What data is stored?
 
 | Kept | Not kept |
 |------|----------|
 | Webhook URL (Discord endpoint) | No analytics |
-| Alarm schedule and message content | No telemetry of any kind |
-| Last-fired and last-error timestamps | No logs sent anywhere |
-| | No user accounts, emails, or IPs |
+| Alarm and calendar schedules, and message content | No telemetry of any kind |
+| Last-fired and last-error timestamps | No logs sent off your machine |
+| Notification log, newest 500 entries, local only | No user accounts, emails, or IPs |
 | | No cookies, no fingerprinting |
 
 The only network request leaving your network is the webhook POST to Discord.
@@ -139,13 +167,20 @@ HTMX, fonts, and all other assets are served directly from the app itself,
 ```text
 ├── docker-compose.yml      Single service, port 9001
 ├── Dockerfile              python:3.12-slim, non-root (uid 1001)
-├── requirements.txt        Python dependencies
+├── requirements.txt        Runtime dependencies
+├── requirements-dev.txt    Test dependencies
+├── pytest.ini              Test configuration
+├── .dockerignore           Keeps data and docs out of the build context
 ├── .gitignore              Git rules
 ├── LICENSE                 GPL v3
 ├── README.md               This file
 ├── app/
-│   ├── __init__.py
-│   ├── main.py             FastAPI routes and HTMX handlers
+│   ├── __init__.py         Version
+│   ├── main.py             FastAPI routes, dashboard, import and export
+│   ├── calendar_alerts.py  Calendar routes, grid, and modal
+│   ├── recurrence.py       Next-fire and date range projection
+│   ├── notification_log.py Log storage and cap
+│   ├── render.py           Shared form helpers and log rendering
 │   ├── models.py           Pydantic schemas with validation
 │   ├── storage.py          Thread-safe atomic JSON read/write
 │   ├── scheduler.py        60-second polling loop
@@ -158,10 +193,13 @@ HTMX, fonts, and all other assets are served directly from the app itself,
 │       ├── desynkro.png    DeSynkro logo
 │       ├── fonts/          Inter variable font (self-hosted)
 │       ├── favicon/        Full favicon set
-│       └── screenshots/    Dashboard and alarm form previews
-└── data/                  Auto-created at startup (gitignored)
+│       └── screenshots/    Dashboard and form previews
+├── tests/                  Pytest suite
+└── data/                   Auto-created at startup (gitignored)
     ├── alarms.json
-    └── webhooks.json
+    ├── webhooks.json
+    ├── calendar.json
+    └── log.json
 ```
 
 ## Troubleshooting
@@ -187,6 +225,19 @@ The dashboard listens on port 9001. To change it, edit the `ports:` line in
 ports:
   - "9001:9001"    # change left side to your preferred port
 ```
+
+## Development
+
+Python 3.12 and Docker are the supported environment.
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt -r requirements-dev.txt
+.venv/bin/pytest
+```
+
+The test suite covers recurrence edge cases, validation, the log cap, calendar
+routes, the grid, import and export, and the Origin check.
 
 ## License
 

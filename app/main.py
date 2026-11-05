@@ -1,11 +1,12 @@
 import json
 import os
 import re
-from datetime import datetime
+from datetime import date as dt_date, datetime, time as dt_time
 from contextlib import asynccontextmanager
 from typing import Annotated
 
 from pathlib import Path
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, Form, Request, Response, UploadFile
 from fastapi.responses import HTMLResponse
@@ -14,8 +15,9 @@ from fastapi.templating import Jinja2Templates
 
 from zoneinfo import ZoneInfo
 
-from app.models import Alarm, DAYS_OF_WEEK, TIMEZONES, Webhook
+from app.models import Alarm, CalendarAlert, DAYS_OF_WEEK, TIMEZONES, Webhook
 from app.storage import read_json, write_json
+from app.recurrence import compute_next_fire
 from app.render import escape, message_fields, render_log, timezone_input, webhook_options
 from app.calendar_alerts import current_month, render_month, router as calendar_router
 from app.notification_log import clear_log
@@ -35,6 +37,15 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 app.include_router(calendar_router)
+
+
+@app.middleware("http")
+async def check_origin(request: Request, call_next):
+    if request.method in {"POST", "PUT", "DELETE", "PATCH"}:
+        origin = request.headers.get("origin")
+        if origin and urlparse(origin).netloc != request.headers.get("host", ""):
+            return Response("Forbidden", status_code=403)
+    return await call_next(request)
 
 templates_dir = Path(__file__).resolve().parent / "templates"
 templates = Jinja2Templates(directory=str(templates_dir))
@@ -197,11 +208,13 @@ async def webhook_help():
 async def export_data():
     webhooks = read_json("webhooks")
     alarms = read_json("alarms")
+    calendar_alerts = read_json("calendar")
     payload = {
-        "version": 1,
+        "version": 2,
         "exported_at": datetime.now(ZoneInfo("UTC")).isoformat(),
         "webhooks": webhooks,
         "alarms": alarms,
+        "calendar": calendar_alerts,
     }
     return Response(
         content=json.dumps(payload, indent=2),
@@ -260,24 +273,49 @@ async def import_data(file: UploadFile, mode: str = Form("merge")):
             pass
 
     imported_alarms = []
-    for i, item in enumerate(data["alarms"]):
+    for item in data["alarms"]:
         try:
             alarm = Alarm(**item)
             imported_alarms.append(alarm.model_dump())
         except Exception:
             pass
 
-    if not imported_webhooks and not imported_alarms:
-        return Response("", status_code=400, headers={"X-Toast-Message": "No valid webhooks or alarms found in file", "X-Toast-Type": "err"})
+    raw_calendar = data.get("calendar", [])
+    if not isinstance(raw_calendar, list):
+        raw_calendar = []
+    imported_calendar = []
+    now = datetime.now(ZoneInfo("UTC"))
+    for item in raw_calendar:
+        try:
+            alert = CalendarAlert(**item)
+            next_fire = compute_next_fire(
+                dt_date.fromisoformat(alert.date),
+                dt_time.fromisoformat(alert.time),
+                alert.timezone,
+                alert.repeat,
+                after_utc=now,
+            )
+            alert.next_fire = next_fire
+            if next_fire is None:
+                alert.enabled = False
+            imported_calendar.append(alert.model_dump())
+        except Exception:
+            pass
+
+    if not imported_webhooks and not imported_alarms and not imported_calendar:
+        return Response("", status_code=400, headers={"X-Toast-Message": "No valid webhooks, alarms, or calendar alerts found in file", "X-Toast-Type": "err"})
 
     total_wh = len(data["webhooks"])
     total_al = len(data["alarms"])
+    total_cal = len(raw_calendar)
     valid_wh = len(imported_webhooks)
     valid_al = len(imported_alarms)
+    valid_cal = len(imported_calendar)
 
     if mode == "replace":
         write_json("webhooks", imported_webhooks)
         write_json("alarms", imported_alarms)
+        write_json("calendar", imported_calendar)
         parts = []
         if total_wh != valid_wh:
             parts.append(f"{valid_wh}/{total_wh} webhooks (skipped {total_wh - valid_wh} invalid)")
@@ -287,12 +325,18 @@ async def import_data(file: UploadFile, mode: str = Form("merge")):
             parts.append(f"{valid_al}/{total_al} alarms (skipped {total_al - valid_al} invalid)")
         else:
             parts.append(f"{valid_al} alarms")
+        if total_cal != valid_cal:
+            parts.append(f"{valid_cal}/{total_cal} calendar alerts (skipped {total_cal - valid_cal} invalid)")
+        else:
+            parts.append(f"{valid_cal} calendar alerts")
         msg = "Import complete: replaced " + ", ".join(parts)
     else:
         existing_wh = read_json("webhooks")
         existing_al = read_json("alarms")
+        existing_cal = read_json("calendar")
         existing_wh_names = {w["name"] for w in existing_wh}
         existing_al_ids = {a["id"] for a in existing_al}
+        existing_cal_ids = {a["id"] for a in existing_cal}
 
         wh_skipped = 0
         for wh in imported_webhooks:
@@ -310,20 +354,34 @@ async def import_data(file: UploadFile, mode: str = Form("merge")):
                 existing_al.append(alarm)
                 existing_al_ids.add(alarm["id"])
 
+        cal_skipped = 0
+        for alert in imported_calendar:
+            if alert["id"] in existing_cal_ids:
+                cal_skipped += 1
+            else:
+                existing_cal.append(alert)
+                existing_cal_ids.add(alert["id"])
+
         write_json("webhooks", existing_wh)
         write_json("alarms", existing_al)
+        write_json("calendar", existing_cal)
 
         parts = []
         wh_imported = valid_wh - wh_skipped
         al_imported = valid_al - al_skipped
+        cal_imported = valid_cal - cal_skipped
         if wh_imported > 0:
             parts.append(f"{wh_imported} webhook(s)")
         if al_imported > 0:
             parts.append(f"{al_imported} alarm(s)")
+        if cal_imported > 0:
+            parts.append(f"{cal_imported} calendar alert(s)")
         if wh_skipped:
             parts.append(f"{wh_skipped} webhook(s) skipped (duplicate names)")
         if al_skipped:
             parts.append(f"{al_skipped} alarm(s) skipped (duplicate IDs)")
+        if cal_skipped:
+            parts.append(f"{cal_skipped} calendar alert(s) skipped (duplicate IDs)")
         if not parts:
             parts.append("nothing new")
         msg = "Import complete: merged " + ", ".join(parts)
@@ -338,8 +396,17 @@ async def dashboard(request: Request):
     for a in alarms:
         a.setdefault("created", "2000-01-01T00:00:00")
     alarms.sort(key=lambda a: a["time"])
-    calendar_html = render_month(current_month(), webhooks, alarms, read_json("calendar"))
-    log_html = render_log(50)
+    show_weekly = request.cookies.get("dns_show_weekly", "1") != "0"
+    show_past = request.cookies.get("dns_show_past", "0") == "1"
+    calendar_html = render_month(
+        current_month(),
+        webhooks,
+        alarms,
+        read_json("calendar"),
+        show_weekly=show_weekly,
+        show_past=show_past,
+    )
+    log_html = render_log()
     return templates.TemplateResponse(request, "index.html", {
         "request": request,
         "webhooks": webhooks,
@@ -354,8 +421,8 @@ async def dashboard(request: Request):
 
 
 @app.get("/log", response_class=HTMLResponse)
-async def log_fragment():
-    return render_log(50)
+async def log_fragment(page: int = 1):
+    return render_log(page)
 
 
 @app.delete("/log", response_class=HTMLResponse)

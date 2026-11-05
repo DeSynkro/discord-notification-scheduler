@@ -1,5 +1,53 @@
 # Changelog
 
+## 1.5.0
+
+### Added
+- Calendar alerts with a month grid and dated scheduling: one-time, daily,
+  weekly, monthly, and yearly repeats.
+- A color picker for each calendar alert.
+- A Show weekly alarms checkbox to hide or show weekly projections. The
+  choice is remembered in a cookie.
+- A Show past alerts checkbox to reveal past and fired calendar alerts in a
+  muted style. The choice is remembered in a cookie.
+- Bubble navigation for Alarms, Calendar, Log, and All. Your last view is
+  remembered.
+- Notification log recording weekly alarms, calendar alerts, and manual
+  tests, capped at the newest 500 entries.
+- Log paging, 10 entries per page.
+- Calendar alerts can be edited, disabled, deleted, and tested.
+- Export version 2 includes calendar alerts. Import accepts version 1 and
+  version 2 backups and recomputes `next_fire`.
+- Origin check on mutating requests.
+- Corrupt JSON files are backed up as `<kind>.corrupt.json` before the app
+  continues with an empty list.
+- `.dockerignore` and a container healthcheck.
+
+### Changed
+- The dashboard now renders the calendar and log alongside the existing
+  alarms and webhooks.
+- Shared form field helpers and HTML escaping across alarm, webhook, and
+  calendar forms.
+- Weekly alarms and manual alarm and webhook tests now write to the
+  notification log.
+- The log view refreshes every 60 seconds and after any mutation.
+
+### Fixed
+- The alarm sort dropdown was missing its `id`, so `hx-include` and the sort
+  sync did nothing.
+- User and imported text could break forms and card attributes.
+- The alarm test card did not show the Sent badge until the next refresh.
+- Calendar modals now close reliably after create, save, and delete.
+- Month arrows sent the current month twice, so they appeared to do nothing.
+- Past and fired calendar alerts disappeared from the grid after a restart.
+  They are now hidden by default and can be revealed with the Show past alerts
+  checkbox.
+
+### Notes
+- The notification log is not included in exports.
+- The calendar grid uses the host timezone. Weekly alarms are projected by
+  their configured weekday.
+
 ## 1.4.1
 
 ### Added

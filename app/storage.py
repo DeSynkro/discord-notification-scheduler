@@ -12,6 +12,14 @@ def _path(kind: str) -> Path:
     return DATA_DIR / f"{kind}.json"
 
 
+def _backup_corrupt(path: Path, kind: str) -> None:
+    try:
+        backup = path.with_name(f"{kind}.corrupt.json")
+        backup.write_bytes(path.read_bytes())
+    except OSError:
+        pass
+
+
 def read_json(kind: str) -> list[dict]:
     path = _path(kind)
     if not path.exists():
@@ -21,6 +29,7 @@ def read_json(kind: str) -> list[dict]:
             data = json.load(f)
             return data if isinstance(data, list) else []
     except (json.JSONDecodeError, OSError):
+        _backup_corrupt(path, kind)
         return []
 
 

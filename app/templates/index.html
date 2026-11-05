@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/static/favicon/apple-touch-icon.png">
-  <link rel="stylesheet" href="/static/style.css?v=1.5">
+  <link rel="stylesheet" href="/static/style.css?v=1.5.4">
   <script src="/static/htmx.min.js"></script>
 </head>
 <body>
@@ -98,7 +98,7 @@
       <div class="section-header">
         <h2>&#x1f4c5; Calendar</h2>
       </div>
-      <div id="calendar-view" hx-get="/calendar" hx-trigger="refresh-lists from:body" hx-include="#cal-month" hx-swap="innerHTML">
+      <div id="calendar-view" hx-get="/calendar" hx-trigger="refresh-lists from:body" hx-include="#cal-month, #show-weekly, #show-past" hx-disinherit="hx-include" hx-swap="innerHTML">
         {{ calendar_html | safe }}
       </div>
     </section>
@@ -109,7 +109,7 @@
         <h2>&#x1f4dc; Notification Log</h2>
         <a class="log-clear" hx-delete="/log" hx-swap="none" hx-confirm="Clear the notification log?">Clear log</a>
       </div>
-      <div id="log-view" hx-get="/log" hx-trigger="every 60s, refresh-lists from:body" hx-swap="innerHTML">
+      <div id="log-view" hx-get="/log" hx-trigger="every 60s, refresh-lists from:body" hx-include="#log-page" hx-disinherit="hx-include" hx-swap="innerHTML">
         {{ log_html | safe }}
       </div>
     </section>
@@ -190,6 +190,17 @@
       });
       try { localStorage.setItem('dns.view', view); } catch (e) {}
     }
+
+    document.addEventListener('change', function(e) {
+      if (e.target && e.target.id === 'show-weekly') {
+        document.cookie = 'dns_show_weekly=' + (e.target.checked ? '1' : '0') +
+          '; path=/; max-age=31536000; SameSite=Lax';
+      }
+      if (e.target && e.target.id === 'show-past') {
+        document.cookie = 'dns_show_past=' + (e.target.checked ? '1' : '0') +
+          '; path=/; max-age=31536000; SameSite=Lax';
+      }
+    });
 
     document.addEventListener('DOMContentLoaded', function() {
       var savedView = 'alarms';

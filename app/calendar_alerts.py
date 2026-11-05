@@ -5,7 +5,7 @@ from datetime import timezone as dt_timezone
 from datetime import timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Form
+from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse
 
 from app.discord import deliver
@@ -63,6 +63,7 @@ def _build_alert(
     repeat: str,
     embed_title: str,
     embed_color: str,
+    color: str = "#3FB950",
     existing: dict | None = None,
 ) -> CalendarAlert:
     embed = None
@@ -87,6 +88,7 @@ def _build_alert(
         timezone=timezone,
         repeat=repeat,
         embed=embed,
+        color=(color or "#3FB950").strip(),
     )
     alert.next_fire = compute_next_fire(
         dt_date.fromisoformat(alert.date),
@@ -117,6 +119,7 @@ def render_modal(alert: CalendarAlert | None = None, prefill_date: str = "") -> 
     time_val = escape(alert.time if alert else "09:00")
     repeat_val = alert.repeat if alert else "none"
     tz_val = alert.timezone if alert else "UTC"
+    color_val = escape(alert.color if alert else "#3FB950")
 
     if is_edit:
         enabled_row = f"""<div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:0.6rem">
@@ -171,6 +174,12 @@ def render_modal(alert: CalendarAlert | None = None, prefill_date: str = "") -> 
         </div>
       </div>
 
+      <label>Color</label>
+      <div class="color-row">
+        <input type="color" name="color" value="{color_val}">
+        <input type="text" class="color-text" value="{color_val}" maxlength="7" oninput="this.previousElementSibling.value=this.value">
+      </div>
+
       {timezone_input(tz_val, TIMEZONES)}
       <p class="hint" style="margin-top:0.4rem">One-time alerts deactivate after they fire. Repeating alerts keep the same day each cycle, and short months clamp to their last day.</p>
 
@@ -203,12 +212,20 @@ def _month_bounds(month: dt_date) -> tuple[dt_date, dt_date]:
     return start, _shift_month(start, 1)
 
 
-def _event(kind: str, row: dict, time_value: str) -> dict:
+def _event(
+    kind: str,
+    row: dict,
+    time_value: str,
+    color: str | None = None,
+    enabled: bool = True,
+) -> dict:
     return {
         "kind": kind,
         "id": row.get("id", ""),
         "name": row.get("name", ""),
         "time": time_value,
+        "color": color,
+        "enabled": enabled,
     }
 
 
@@ -224,18 +241,21 @@ def _weekly_events_for_day(day: dt_date, alarms: list[dict]) -> list[dict]:
     return events
 
 
-def _calendar_events_by_day(month: dt_date, alerts: list[dict]) -> dict[dt_date, list[dict]]:
+def _calendar_events_by_day(
+    month: dt_date,
+    alerts: list[dict],
+    show_past: bool = False,
+) -> dict[dt_date, list[dict]]:
     start, end = _month_bounds(month)
     start_utc = datetime.combine(start, dt_time.min, tzinfo=DISPLAY_TZ).astimezone(dt_timezone.utc)
     end_utc = datetime.combine(end, dt_time.min, tzinfo=DISPLAY_TZ).astimezone(dt_timezone.utc)
     grouped: dict[dt_date, list[dict]] = {}
+    now_local = datetime.now(DISPLAY_TZ)
 
     for row in alerts:
         try:
             alert = CalendarAlert(**row)
         except Exception:
-            continue
-        if not alert.enabled:
             continue
         for occurrence in occurrences_between(
             dt_date.fromisoformat(alert.date),
@@ -245,24 +265,34 @@ def _calendar_events_by_day(month: dt_date, alerts: list[dict]) -> dict[dt_date,
             start_utc,
             end_utc,
         ):
-            day = occurrence.astimezone(DISPLAY_TZ).date()
-            if start <= day < end:
-                grouped.setdefault(day, []).append(_event("calendar", row, alert.time))
+            local = occurrence.astimezone(DISPLAY_TZ)
+            day = local.date()
+            if start <= day < end and (
+                alert.enabled or (show_past and local < now_local)
+            ):
+                grouped.setdefault(day, []).append(
+                    _event("calendar", row, alert.time, alert.color, alert.enabled)
+                )
     return grouped
 
 
-def _events_for_day(day: dt_date, alarms: list[dict], alerts: list[dict]) -> list[dict]:
-    events = _weekly_events_for_day(day, alarms)
+def _events_for_day(
+    day: dt_date,
+    alarms: list[dict],
+    alerts: list[dict],
+    show_weekly: bool = True,
+    show_past: bool = False,
+) -> list[dict]:
+    events = _weekly_events_for_day(day, alarms) if show_weekly else []
     day_start = datetime.combine(day, dt_time.min, tzinfo=DISPLAY_TZ)
     start_utc = day_start.astimezone(dt_timezone.utc)
     end_utc = (day_start + timedelta(days=1)).astimezone(dt_timezone.utc)
+    now_local = datetime.now(DISPLAY_TZ)
 
     for row in alerts:
         try:
             alert = CalendarAlert(**row)
         except Exception:
-            continue
-        if not alert.enabled:
             continue
         for occurrence in occurrences_between(
             dt_date.fromisoformat(alert.date),
@@ -272,8 +302,13 @@ def _events_for_day(day: dt_date, alarms: list[dict], alerts: list[dict]) -> lis
             start_utc,
             end_utc,
         ):
-            if occurrence.astimezone(DISPLAY_TZ).date() == day:
-                events.append(_event("calendar", row, alert.time))
+            local = occurrence.astimezone(DISPLAY_TZ)
+            if local.date() == day and (
+                alert.enabled or (show_past and local < now_local)
+            ):
+                events.append(
+                    _event("calendar", row, alert.time, alert.color, alert.enabled)
+                )
                 break
 
     events.sort(key=lambda event: (event["time"], event["name"].lower()))
@@ -287,16 +322,31 @@ def _event_url(event: dict) -> str:
 
 
 def _event_pill(event: dict) -> str:
+    style = ""
+    if event["kind"] == "calendar" and event.get("color"):
+        color = escape(event["color"])
+        style = f' style="border-color: {color}; background: {color}26; color: {color};"'
+    disabled = " disabled" if event.get("enabled") is False else ""
+    title = f'{escape(event["name"])}, {escape(event["time"])}'
+    if event.get("enabled") is False:
+        title += " (disabled)"
     return (
-        f'<span class="cal-event {event["kind"]}" role="button" tabindex="0" '
+        f'<span class="cal-event {event["kind"]}{disabled}"{style} role="button" tabindex="0" '
         f'hx-get="{_event_url(event)}" hx-target="#modal-area" hx-swap="innerHTML" '
-        f'hx-on:click="event.stopPropagation()" '
-        f'title="{escape(event["name"])}, {escape(event["time"])}">'
+        f'hx-trigger="click" hx-on:click="event.stopPropagation()" '
+        f'title="{title}">'
         f'{escape(event["name"])}</span>'
     )
 
 
-def _day_cell(day: dt_date, month: dt_date, today: dt_date, events: list[dict]) -> str:
+def _day_cell(
+    day: dt_date,
+    month: dt_date,
+    today: dt_date,
+    events: list[dict],
+    show_weekly: bool = True,
+    show_past: bool = False,
+) -> str:
     classes = ["cal-day"]
     if day.month != month.month:
         classes.append("out")
@@ -305,24 +355,35 @@ def _day_cell(day: dt_date, month: dt_date, today: dt_date, events: list[dict]) 
 
     pills = "".join(_event_pill(event) for event in events[:3])
     if len(events) > 3:
+        params = (
+            f"&show_weekly={1 if show_weekly else 0}"
+            f"&show_past={1 if show_past else 0}"
+        )
         pills += (
             f'<span class="cal-more" role="button" tabindex="0" '
-            f'hx-get="/calendar/day?date={day.isoformat()}" hx-target="#modal-area" '
-            f'hx-swap="innerHTML" hx-on:click="event.stopPropagation()">'
+            f'hx-get="/calendar/day?date={day.isoformat()}{params}" hx-target="#modal-area" '
+            f'hx-swap="innerHTML" hx-trigger="click" hx-on:click="event.stopPropagation()">'
             f'+{len(events) - 3} more</span>'
         )
 
-    return f"""<div class="{' '.join(classes)}" role="button" tabindex="0" hx-get="/calendar/new?date={day.isoformat()}" hx-target="#modal-area" hx-swap="innerHTML">
+    return f"""<div class="{' '.join(classes)}" role="button" tabindex="0" hx-get="/calendar/new?date={day.isoformat()}" hx-target="#modal-area" hx-swap="innerHTML" hx-trigger="click">
   <span class="cal-num">{day.day}</span>
   <span class="cal-add">+</span>
   <div class="cal-events">{pills}</div>
 </div>"""
 
 
-def render_month(month: dt_date, webhooks: list[dict], alarms: list[dict], alerts: list[dict]) -> str:
+def render_month(
+    month: dt_date,
+    webhooks: list[dict],
+    alarms: list[dict],
+    alerts: list[dict],
+    show_weekly: bool = True,
+    show_past: bool = False,
+) -> str:
     month = month.replace(day=1)
     start, end = _month_bounds(month)
-    dated = _calendar_events_by_day(month, alerts)
+    dated = _calendar_events_by_day(month, alerts, show_past)
     today = datetime.now(DISPLAY_TZ).date()
     grid_start = start - timedelta(days=start.weekday())
 
@@ -331,14 +392,17 @@ def render_month(month: dt_date, webhooks: list[dict], alarms: list[dict], alert
         day = grid_start + timedelta(days=offset)
         events = []
         if start <= day < end:
-            events.extend(_weekly_events_for_day(day, alarms))
+            if show_weekly:
+                events.extend(_weekly_events_for_day(day, alarms))
             events.extend(dated.get(day, []))
         events.sort(key=lambda event: (event["time"], event["name"].lower()))
-        cells.append(_day_cell(day, month, today, events))
+        cells.append(_day_cell(day, month, today, events, show_weekly, show_past))
 
     prev_month = _shift_month(month, -1).strftime("%Y-%m")
     next_month = _shift_month(month, 1).strftime("%Y-%m")
     today_month = today.replace(day=1).strftime("%Y-%m")
+    checked = "checked" if show_weekly else ""
+    past_checked = "checked" if show_past else ""
     weekdays = "".join(
         f"<span>{name}</span>" for name in ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
     )
@@ -346,16 +410,26 @@ def render_month(month: dt_date, webhooks: list[dict], alarms: list[dict], alert
     header = f"""<input type="hidden" id="cal-month" name="month" value="{month.strftime('%Y-%m')}">
 <div class="cal-header">
   <div class="cal-controls">
-    <button class="btn btn-sm" hx-get="/calendar?month={today_month}" hx-target="#calendar-view" hx-swap="innerHTML">Today</button>
-    <button class="btn-icon" hx-get="/calendar?month={prev_month}" hx-target="#calendar-view" hx-swap="innerHTML" title="Previous month">&#x2039;</button>
+    <button class="btn btn-sm" hx-get="/calendar?month={today_month}" hx-target="#calendar-view" hx-swap="innerHTML" hx-trigger="click" hx-include="#show-weekly, #show-past">Today</button>
+    <button class="btn-icon" hx-get="/calendar?month={prev_month}" hx-target="#calendar-view" hx-swap="innerHTML" hx-trigger="click" hx-include="#show-weekly, #show-past" title="Previous month">&#x2039;</button>
     <span class="cal-month">{month.strftime('%B %Y')}</span>
-    <button class="btn-icon" hx-get="/calendar?month={next_month}" hx-target="#calendar-view" hx-swap="innerHTML" title="Next month">&#x203a;</button>
+    <button class="btn-icon" hx-get="/calendar?month={next_month}" hx-target="#calendar-view" hx-swap="innerHTML" hx-trigger="click" hx-include="#show-weekly, #show-past" title="Next month">&#x203a;</button>
   </div>
-  <button class="btn btn-primary btn-sm" hx-get="/calendar/new?date={today.isoformat()}" hx-target="#modal-area" hx-swap="innerHTML">+ New Alert</button>
-</div>
-<div class="cal-legend">
-  <span><i class="dot weekly"></i> Weekly alarm</span>
-  <span><i class="dot dated"></i> Calendar alert</span>
+  <div class="cal-actions">
+    <label class="cal-toggle" title="Show weekly alarms on the calendar">
+      <input type="checkbox" id="show-weekly" name="show_weekly" value="1" {checked}
+             hx-get="/calendar" hx-target="#calendar-view" hx-swap="innerHTML"
+             hx-include="#cal-month, #show-past" hx-trigger="change">
+      Show weekly alarms
+    </label>
+    <label class="cal-toggle" title="Show past and fired alerts">
+      <input type="checkbox" id="show-past" name="show_past" value="1" {past_checked}
+             hx-get="/calendar" hx-target="#calendar-view" hx-swap="innerHTML"
+             hx-include="#cal-month, #show-weekly" hx-trigger="change">
+      Show past alerts
+    </label>
+    <button class="btn btn-primary btn-sm" hx-get="/calendar/new?date={today.isoformat()}" hx-target="#modal-area" hx-swap="innerHTML" hx-trigger="click">+ New Alert</button>
+  </div>
 </div>"""
 
     return f"""{header}
@@ -363,16 +437,28 @@ def render_month(month: dt_date, webhooks: list[dict], alarms: list[dict], alert
   <div class="cal-weekdays">{weekdays}</div>
   <div class="cal-grid">{''.join(cells)}</div>
 </div>
-<p class="cal-hint">Click a day to add an alert. Click a green event to edit it.</p>"""
+<p class="cal-hint">Click a day to add an alert. Click an event to edit it.</p>"""
 
 
-def render_day_modal(day: dt_date, webhooks: list[dict], alarms: list[dict], alerts: list[dict]) -> str:
-    events = _events_for_day(day, alarms, alerts)
+def render_day_modal(
+    day: dt_date,
+    webhooks: list[dict],
+    alarms: list[dict],
+    alerts: list[dict],
+    show_weekly: bool = True,
+    show_past: bool = False,
+) -> str:
+    events = _events_for_day(day, alarms, alerts, show_weekly, show_past)
     rows = []
     for event in events:
         label = "Weekly alarm" if event["kind"] == "weekly" else "Calendar alert"
+        style = ""
+        if event["kind"] == "calendar" and event.get("color"):
+            color = escape(event["color"])
+            style = f' style="border-color: {color}; background: {color}26; color: {color};"'
+        disabled = " disabled" if event.get("enabled") is False else ""
         rows.append(f"""<div class="day-event-row">
-  <span class="cal-event {event['kind']}">{escape(event['name'])}</span>
+  <span class="cal-event {event['kind']}{disabled}"{style}>{escape(event['name'])}</span>
   <span class="day-event-meta">{escape(event['time'])} &middot; {label}</span>
   <button class="btn-icon btn-icon-xs" hx-get="{_event_url(event)}" hx-target="#modal-area" hx-swap="innerHTML" title="Edit">&#x270e;</button>
 </div>""")
@@ -394,30 +480,66 @@ def render_day_modal(day: dt_date, webhooks: list[dict], alarms: list[dict], ale
 
 
 @router.get("/calendar", response_class=HTMLResponse)
-async def calendar_fragment(month: str = ""):
+async def calendar_fragment(
+    request: Request,
+    month: str = "",
+    show_weekly: str = "",
+    show_past: str = "",
+):
     try:
         month_date = datetime.strptime(month, "%Y-%m").date()
     except (TypeError, ValueError):
         month_date = current_month()
+
+    if show_weekly in ("0", "1"):
+        weekly = show_weekly == "1"
+    else:
+        weekly = request.cookies.get("dns_show_weekly", "1") != "0"
+
+    if show_past in ("0", "1"):
+        past = show_past == "1"
+    else:
+        past = request.cookies.get("dns_show_past", "0") == "1"
+
     return render_month(
         month_date,
         read_json("webhooks"),
         read_json("alarms"),
         read_json("calendar"),
+        show_weekly=weekly,
+        show_past=past,
     )
 
 
 @router.get("/calendar/day", response_class=HTMLResponse)
-async def calendar_day_modal(date: str = ""):
+async def calendar_day_modal(
+    request: Request,
+    date: str = "",
+    show_weekly: str = "",
+    show_past: str = "",
+):
     try:
         day = dt_date.fromisoformat(date)
     except (TypeError, ValueError):
         day = datetime.now(DISPLAY_TZ).date()
+
+    if show_weekly in ("0", "1"):
+        weekly = show_weekly == "1"
+    else:
+        weekly = request.cookies.get("dns_show_weekly", "1") != "0"
+
+    if show_past in ("0", "1"):
+        past = show_past == "1"
+    else:
+        past = request.cookies.get("dns_show_past", "0") == "1"
+
     return render_day_modal(
         day,
         read_json("webhooks"),
         read_json("alarms"),
         read_json("calendar"),
+        show_weekly=weekly,
+        show_past=past,
     )
 
 
@@ -450,11 +572,13 @@ async def create_calendar_alert(
     repeat: Annotated[str, Form()] = "none",
     embed_title: Annotated[str, Form()] = "",
     embed_color: Annotated[str, Form()] = "",
+    color: Annotated[str, Form()] = "#3FB950",
 ):
     try:
         alert = _build_alert(
             name, webhook_name, message, message_type,
             date, time, timezone, repeat, embed_title, embed_color,
+            color=color,
         )
     except Exception as exc:
         return HTMLResponse("", status_code=400, headers=_toast(_error_text(exc), "err"))
@@ -485,6 +609,7 @@ async def update_calendar_alert(
     repeat: Annotated[str, Form()] = "none",
     embed_title: Annotated[str, Form()] = "",
     embed_color: Annotated[str, Form()] = "",
+    color: Annotated[str, Form()] = "#3FB950",
 ):
     rows = read_json("calendar")
     idx = next((i for i, row in enumerate(rows) if row["id"] == alert_id), None)
@@ -495,6 +620,7 @@ async def update_calendar_alert(
         alert = _build_alert(
             name, webhook_name, message, message_type,
             date, time, timezone, repeat, embed_title, embed_color,
+            color=color,
             existing=rows[idx],
         )
     except Exception as exc:

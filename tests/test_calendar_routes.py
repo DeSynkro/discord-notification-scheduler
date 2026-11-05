@@ -80,6 +80,18 @@ def test_validation_error_returns_toast(client):
     assert read_json("calendar") == []
 
 
+def test_create_alert_stores_color(client):
+    resp = client.post("/calendar", data=_base(color="#ff8800"))
+    assert resp.status_code == 200
+    assert read_json("calendar")[0]["color"] == "#FF8800"
+
+
+def test_invalid_color_returns_toast(client):
+    resp = client.post("/calendar", data=_base(color="orange"))
+    assert resp.status_code == 400
+    assert resp.headers["X-Toast-Type"] == "err"
+
+
 def test_past_one_time_alert_is_rejected(client):
     resp = client.post("/calendar", data=_base(date="2000-01-01"))
     assert resp.status_code == 400

@@ -1,0 +1,11 @@
+data/
+.git/
+__pycache__/
+*.pyc
+docs/
+tests/
+.pytest_cache/
+.vscode/
+.idea/
+requirements-dev.txt
+pytest.ini

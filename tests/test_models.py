@@ -66,6 +66,16 @@ def test_calendar_alert_accepts_embed_color():
     assert alert.embed.color == "#FF0000"
 
 
+def test_calendar_alert_accepts_color():
+    alert = CalendarAlert(**_base(color="#ff8800"))
+    assert alert.color == "#FF8800"
+
+
+def test_calendar_alert_rejects_bad_color():
+    with pytest.raises(ValidationError):
+        CalendarAlert(**_base(color="orange"))
+
+
 def test_log_entry_accepts_valid_values():
     entry = LogEntry(
         ts="2026-11-05T19:30:00+00:00",
