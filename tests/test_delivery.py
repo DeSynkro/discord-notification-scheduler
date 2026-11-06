@@ -10,6 +10,36 @@ def _alarm():
     return Alarm(name="T", webhook_name="g", message="m", time="09:00")
 
 
+def test_build_payload_uses_alarm_color_for_embed():
+    alarm = Alarm(
+        name="T", webhook_name="g", message="m", time="09:00",
+        message_type="embed", color="#FF0000",
+        embed={"title": "Report"},
+    )
+    payload = discord._build_payload(alarm)
+    assert payload["embeds"][0]["color"] == 0xFF0000
+
+
+def test_build_payload_prefers_alarm_color_over_legacy_embed_color():
+    alarm = Alarm(
+        name="T", webhook_name="g", message="m", time="09:00",
+        message_type="embed", color="#0000FF",
+        embed={"title": "Report", "color": "#FF0000"},
+    )
+    payload = discord._build_payload(alarm)
+    assert payload["embeds"][0]["color"] == 0x0000FF
+
+
+def test_build_payload_keeps_legacy_embed_color_without_alarm_color():
+    alarm = Alarm(
+        name="T", webhook_name="g", message="m", time="09:00",
+        message_type="embed",
+        embed={"title": "Report", "color": "#00FF00"},
+    )
+    payload = discord._build_payload(alarm)
+    assert payload["embeds"][0]["color"] == 0x00FF00
+
+
 def test_deliver_logs_success(monkeypatch):
     calls = {}
 

@@ -1,6 +1,6 @@
 import json
 
-from app.storage import read_json
+from app.storage import read_json, write_json
 
 WH = {
     "name": "general",
@@ -67,7 +67,43 @@ def test_import_replace_clears_calendar(client):
     assert rows[0]["id"] == "cal000000002"
 
 
+def test_import_replace_without_calendar_preserves_it(client):
+    write_json("calendar", [CAL])
+    resp = _import(
+        client,
+        {"version": 1, "webhooks": [WH], "alarms": []},
+        mode="replace",
+    )
+    assert resp.status_code == 200
+    assert read_json("calendar") == [CAL]
+
+
 def test_import_recomputes_next_fire(client):
     _import(client, {"version": 2, "webhooks": [], "alarms": [], "calendar": [CAL]})
     row = read_json("calendar")[0]
     assert row["next_fire"].startswith("2099-11-20")
+
+
+def test_import_form_renders_close_icon(client):
+    html = client.get("/import/form").text
+    assert "{icon(" not in html
+    assert "<svg" in html
+    assert 'type="button"' in html
+
+
+def test_webhook_help_renders_close_icon(client):
+    html = client.get("/webhooks/help").text
+    assert "{icon(" not in html
+    assert "<svg" in html
+
+
+def test_import_storage_error_returns_toast(client, monkeypatch):
+    from app.storage import StorageError
+
+    def fail(*args, **kwargs):
+        raise StorageError("The data folder is not writable")
+
+    monkeypatch.setattr("app.main.write_json", fail)
+    resp = _import(client, {"webhooks": [WH], "alarms": []})
+    assert resp.status_code == 500
+    assert "writable" in resp.headers.get("X-Toast-Message", "").lower()

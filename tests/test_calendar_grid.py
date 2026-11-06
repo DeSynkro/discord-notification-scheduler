@@ -25,6 +25,7 @@ def seeded_data(tmp_data, monkeypatch):
             "timezone": "UTC",
             "enabled": True,
             "created": "2026-01-01T00:00:00+00:00",
+            "color": "#FF0000",
         },
         {
             "id": "alarm0000002",
@@ -157,6 +158,11 @@ def test_extreme_day_is_clamped(client):
 def test_other_month_is_dimmed(client, seeded_data):
     html = client.get("/calendar?month=2026-11").text
     assert "cal-day out" in html
+
+
+def test_weekly_alarm_uses_its_color_on_the_calendar(client, seeded_data):
+    html = client.get("/calendar?month=2026-11").text
+    assert 'style="--event-color: #FF0000;"' in html
 
 
 def test_day_modal_lists_entries(client, seeded_data):

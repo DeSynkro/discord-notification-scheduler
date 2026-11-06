@@ -1,5 +1,6 @@
 import httpx
 import asyncio
+from app.colors import effective_color
 from app.models import Alarm
 from app.notification_log import append_log
 from app.storage import read_json
@@ -23,10 +24,9 @@ def _build_payload(alarm: Alarm) -> dict:
         embed = {"description": alarm.message}
         if alarm.embed and alarm.embed.title:
             embed["title"] = alarm.embed.title
-        if alarm.embed and alarm.embed.color:
-            color_int = _hex_to_int(alarm.embed.color)
-            if color_int is not None:
-                embed["color"] = color_int
+        color_int = _hex_to_int(effective_color(alarm))
+        if color_int is not None:
+            embed["color"] = color_int
         payload["embeds"] = [embed]
     else:
         payload["content"] = alarm.message

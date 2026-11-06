@@ -8,6 +8,10 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 _lock = threading.Lock()
 
 
+class StorageError(Exception):
+    """Raised when persistent data cannot be written."""
+
+
 def _path(kind: str) -> Path:
     return DATA_DIR / f"{kind}.json"
 
@@ -45,6 +49,13 @@ def write_json(kind: str, data: list[dict]) -> None:
     path = _path(kind)
     tmp = path.with_suffix(".tmp")
     with _lock:
-        with open(tmp, "w") as f:
-            json.dump(data, f, indent=2)
-        tmp.replace(path)
+        try:
+            with open(tmp, "w") as f:
+                json.dump(data, f, indent=2)
+            tmp.replace(path)
+        except OSError as exc:
+            try:
+                tmp.unlink(missing_ok=True)
+            except OSError:
+                pass
+            raise StorageError("The data folder is not writable") from exc

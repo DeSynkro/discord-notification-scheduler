@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Discord Notification Scheduler — banner</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1600px; height: 600px; overflow: hidden; }
+  body {
+    background: #0B0D14;
+    color: #EEF0F5;
+    font-family: 'Fira Sans', 'DejaVu Sans', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .banner {
+    width: 1600px; height: 600px;
+    padding: 64px 80px;
+    display: grid;
+    grid-template-columns: 760px minmax(0, 1fr);
+    gap: 64px;
+    align-items: stretch;
+  }
+  .left { display: flex; flex-direction: column; justify-content: center; min-width: 0; }
+  .brandline { display: flex; align-items: center; gap: 16px; }
+  .mark { width: 64px; height: 64px; display: block; flex-shrink: 0; }
+  .eyebrow {
+    display: flex; align-items: center; gap: 9px;
+    font-family: 'Noto Sans Mono', 'DejaVu Sans Mono', monospace;
+    font-size: 15px; color: #A3A9B8;
+  }
+  .hash { color: #8B9BFF; font-family: 'Noto Sans Mono', 'DejaVu Sans Mono', monospace; }
+
+  h1 {
+    margin-top: 30px;
+    font-size: 60px;
+    line-height: 1.03;
+    font-weight: 500;
+    letter-spacing: -0.035em;
+    color: #F2F4F9;
+  }
+  h1 span { display: block; }
+
+  .sub {
+    max-width: 660px;
+    margin-top: 20px;
+    font-size: 20px;
+    line-height: 1.5;
+    font-weight: 400;
+    color: #A3A9B8;
+  }
+
+  .meta {
+    display: flex;
+    align-items: center;
+    margin-top: 28px;
+    font-family: 'Noto Sans Mono', 'DejaVu Sans Mono', monospace;
+    font-size: 13px;
+    color: #7A8296;
+  }
+  .meta span + span::before {
+    content: '/';
+    margin: 0 12px;
+    color: #343a49;
+  }
+
+  .right { display: flex; align-items: center; justify-content: center; min-width: 0; }
+  .card {
+    width: 520px;
+    padding: 28px;
+    border: 1px solid rgba(238, 240, 245, 0.10);
+    border-radius: 20px;
+    background: #11141C;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  }
+  .card-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    font-family: 'Noto Sans Mono', 'DejaVu Sans Mono', monospace;
+    font-size: 12px; color: #7A8296;
+  }
+  .card-head > span:first-child { display: flex; align-items: center; gap: 8px; }
+  .live { width: 7px; height: 7px; border-radius: 50%; background: #4CC38A; display: inline-block; }
+
+  .time {
+    margin-top: 22px;
+    font-family: 'Noto Sans Mono', 'DejaVu Sans Mono', monospace;
+    font-size: 72px;
+    line-height: 0.95;
+    letter-spacing: -0.04em;
+    color: #F2F4F9;
+    font-variant-numeric: tabular-nums;
+  }
+  .time span { margin-left: 8px; font-size: 18px; letter-spacing: 0; color: #7A8296; }
+
+  .when { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 15px; color: #A3A9B8; }
+  .when .count { font-family: 'Noto Sans Mono', 'DejaVu Sans Mono', monospace; font-size: 14px; color: #8B9BFF; }
+
+  .name { margin-top: 22px; font-size: 24px; font-weight: 500; letter-spacing: -0.015em; color: #F2F4F9; }
+  .channel { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 14px; color: #A3A9B8; }
+  .sep { color: #343a49; }
+
+  .track { position: relative; height: 44px; margin-top: 26px; }
+  .line { position: absolute; left: 0; right: 0; top: 22px; height: 1px; background: rgba(238, 240, 245, 0.16); }
+  .tick { position: absolute; top: 18px; width: 1px; height: 9px; background: rgba(238, 240, 245, 0.10); }
+  .t1 { left: 25%; } .t2 { left: 50%; } .t3 { left: 75%; }
+  .now { position: absolute; left: 0; top: 14px; width: 2px; height: 17px; background: #F2F4F9; }
+  .now::before {
+    content: ''; position: absolute; top: -4px; left: -2px;
+    width: 7px; height: 7px; border-radius: 50%; background: #F2F4F9;
+  }
+  .pin { position: absolute; top: 15px; width: 4px; height: 15px; border-radius: 2px; background: #8B9BFF; }
+  .pin::before {
+    content: ''; position: absolute; top: -3px; left: 50%; transform: translateX(-50%);
+    width: 8px; height: 8px; border-radius: 50%; background: inherit;
+  }
+  .p1 { left: 8%; } .p2 { left: 38%; } .p3 { left: 86%; }
+  .pin.calendar { background: #4CC38A; }
+
+  .labels {
+    display: flex; justify-content: space-between;
+    margin-top: 6px;
+    font-family: 'Noto Sans Mono', 'DejaVu Sans Mono', monospace;
+    font-size: 12px; color: #7A8296;
+  }
+</style>
+</head>
+<body>
+  <div class="banner">
+    <div class="left">
+      <div class="brandline">
+        <svg class="mark" viewBox="0 0 512 512" aria-hidden="true">
+          <rect width="512" height="512" rx="116" fill="#11141C"/>
+          <rect x="1" y="1" width="510" height="510" rx="115" fill="none" stroke="#EEF0F5" stroke-opacity="0.12" stroke-width="2"/>
+          <g fill="none" stroke="#8B9BFF" stroke-width="52" stroke-linecap="round">
+            <path d="M204 136 L168 376"/>
+            <path d="M348 136 L312 376"/>
+            <path d="M124 208 L396 208"/>
+            <path d="M116 304 L388 304"/>
+          </g>
+          <circle cx="401" cy="116" r="21" fill="#4CC38A"/>
+          <circle cx="401" cy="116" r="21" fill="none" stroke="#11141C" stroke-width="10"/>
+        </svg>
+        <div class="eyebrow"><span class="hash">#</span> Self-hosted delivery for Discord</div>
+      </div>
+
+      <h1><span>Discord Notification</span><span>Scheduler</span></h1>
+
+      <p class="sub">Weekly alarms and calendar alerts, delivered to the right channel.</p>
+
+      <div class="meta">
+        <span>Weekly alarms</span><span>Dated alerts</span><span>Delivery log</span>
+      </div>
+    </div>
+
+    <div class="right">
+      <div class="card">
+        <div class="card-head">
+          <span><span class="live"></span>Next delivery</span>
+          <span>Your next 24 hours</span>
+        </div>
+
+        <div class="time">11:05<span>PM</span></div>
+        <div class="when">Today <span class="sep">/</span> <span class="count">in 1h 58m</span></div>
+
+        <div class="name">Morning standup</div>
+        <div class="channel"><span class="hash">#</span>general <span class="sep">/</span> Weekly alarm <span class="sep">/</span> 3:05 PM UTC</div>
+
+        <div class="track">
+          <span class="line"></span>
+          <span class="tick t1"></span><span class="tick t2"></span><span class="tick t3"></span>
+          <span class="now"></span>
+          <span class="pin p1"></span><span class="pin p2"></span><span class="pin p3 calendar"></span>
+        </div>
+        <div class="labels"><span>now</span><span>6h</span><span>12h</span><span>18h</span><span>24h</span></div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

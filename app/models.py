@@ -67,6 +67,7 @@ class Alarm(BaseModel):
     message: str = Field(..., min_length=1, max_length=2000)
     message_type: str = "text"  # "text" or "embed"
     embed: Optional[EmbedConfig] = None
+    color: Optional[str] = None
     time: str = Field(..., pattern=r"^([01]\d|2[0-3]):([0-5]\d)$")
     days: list[str] = Field(default_factory=lambda: list(DAYS_OF_WEEK))
     timezone: str = "UTC"
@@ -98,6 +99,15 @@ class Alarm(BaseModel):
         if v not in ("text", "embed"):
             raise ValueError("message_type must be 'text' or 'embed'")
         return v
+
+    @field_validator("color")
+    @classmethod
+    def check_color(cls, v):
+        if v is None:
+            return v
+        if not isinstance(v, str) or not re.match(r"^#[0-9a-fA-F]{6}$", v):
+            raise ValueError("Color must be a hex value like #5865F2")
+        return v.upper()
 
 
 CALENDAR_REPEATS = ("none", "daily", "weekly", "monthly", "yearly")

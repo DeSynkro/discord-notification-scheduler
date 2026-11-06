@@ -5,6 +5,10 @@ data/*.json
 __pycache__/
 *.py[cod]
 *.egg-info/
+.venv/
+
+# Local v2 redesign workspace (merged into app/ in 2.0.0)
+v2.0/
 
 # Environment
 .env

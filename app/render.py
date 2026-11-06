@@ -1,7 +1,8 @@
 import html
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
+from app.icons import icon
 from app.notification_log import read_log
 
 
@@ -13,6 +14,11 @@ def header_text(value) -> str:
     text = " ".join(str(value).split())
     safe = text.encode("latin-1", "replace").decode("latin-1")
     return (safe or "Something went wrong")[:300]
+
+
+def channel_label(name: str, missing: bool = False) -> str:
+    cls = "channel missing" if missing else "channel"
+    return f'<span class="{cls}"><span class="hash">#</span>{escape(name)}</span>'
 
 
 def webhook_options(webhooks: list[dict], selected: str = "") -> str:
@@ -40,7 +46,6 @@ def message_fields(
 ) -> str:
     embed = embed or {}
     title = escape(embed.get("title") or "")
-    color = escape(embed.get("color") or "#5865F2")
     text_checked = "checked" if message_type == "text" else ""
     embed_checked = "checked" if message_type == "embed" else ""
     embed_visible = "" if message_type == "embed" else 'style="display:none"'
@@ -59,13 +64,41 @@ def message_fields(
       <div id="embed-fields" class="embed-fields" {embed_visible}>
         <label>Embed title (optional)</label>
         <input type="text" name="embed_title" value="{title}" maxlength="256">
-
-        <label>Embed color</label>
-        <div class="color-row">
-          <input type="color" name="embed_color" value="{color}" oninput="this.nextElementSibling.value=this.value">
-          <input type="text" class="color-text" value="{color}" maxlength="7" oninput="this.previousElementSibling.value=this.value">
-        </div>
       </div>"""
+
+
+def _log_summary(rows: list[dict]) -> str:
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+    sent = failed = 0
+    for row in rows:
+        try:
+            moment = datetime.fromisoformat(row.get("ts", ""))
+        except (TypeError, ValueError):
+            continue
+        if moment.tzinfo is None:
+            moment = moment.replace(tzinfo=timezone.utc)
+        if moment < cutoff:
+            continue
+        if row.get("status") == "ok":
+            sent += 1
+        elif row.get("status") == "err":
+            failed += 1
+
+    if sent + failed == 0:
+        return (
+            '<div class="log-summary">'
+            '<span class="log-summary-label">Last 24 hours</span>'
+            '<span class="log-summary-quiet">No deliveries</span>'
+            '</div>'
+        )
+    failed_cls = " is-err" if failed else ""
+    return (
+        '<div class="log-summary">'
+        '<span class="log-summary-label">Last 24 hours</span>'
+        f'<span class="log-stat"><strong>{sent}</strong> sent</span>'
+        f'<span class="log-stat{failed_cls}"><strong>{failed}</strong> failed</span>'
+        '</div>'
+    )
 
 
 def render_log(page: int = 1, page_size: int = 10) -> str:
@@ -74,7 +107,11 @@ def render_log(page: int = 1, page_size: int = 10) -> str:
     if total == 0:
         return (
             '<input type="hidden" id="log-page" name="page" value="1">'
-            '<span class="empty">No notifications logged yet</span>'
+            '<div class="empty-state">'
+            f'<span class="empty-icon">{icon("log", 20)}</span>'
+            '<strong>No deliveries yet</strong>'
+            '<span>Send a test from an alarm or a webhook to see it here.</span>'
+            '</div>'
         )
 
     pages = max(1, (total + page_size - 1) // page_size)
@@ -101,13 +138,13 @@ def render_log(page: int = 1, page_size: int = 10) -> str:
 
         status = row.get("status")
         badge = (
-            '<span class="badge badge-ok">Sent</span>'
+            '<span class="badge badge-ok"><span class="dot"></span>Sent</span>'
             if status == "ok"
-            else '<span class="badge badge-err">Failed</span>'
+            else '<span class="badge badge-err"><span class="dot"></span>Failed</span>'
         )
         meta = (
             f'<span class="log-kind {escape(kind)}">{escape(kind_label)}</span>'
-            f'{escape(row.get("webhook_name", ""))}'
+            f'{channel_label(row.get("webhook_name", ""))}'
         )
         preview = row.get("preview", "")
         preview_html = (
@@ -134,13 +171,14 @@ def render_log(page: int = 1, page_size: int = 10) -> str:
         prev_disabled = " disabled" if page <= 1 else ""
         next_disabled = " disabled" if page >= pages else ""
         pager = f"""<div class="log-pager">
-  <button class="btn btn-sm" hx-get="/log?page={page - 1}" hx-target="#log-view" hx-swap="innerHTML" hx-trigger="click"{prev_disabled}>&#x2039; Prev</button>
+  <button class="btn btn-sm" hx-get="/log?page={page - 1}" hx-target="#log-view" hx-swap="innerHTML" hx-trigger="click"{prev_disabled}>{icon("chevron-left", 13)} Prev</button>
   <span class="log-page-label">Page {page} of {pages}</span>
-  <button class="btn btn-sm" hx-get="/log?page={page + 1}" hx-target="#log-view" hx-swap="innerHTML" hx-trigger="click"{next_disabled}>Next &#x203a;</button>
+  <button class="btn btn-sm" hx-get="/log?page={page + 1}" hx-target="#log-view" hx-swap="innerHTML" hx-trigger="click"{next_disabled}>Next {icon("chevron-right", 13)}</button>
 </div>"""
 
     return (
         f'<input type="hidden" id="log-page" name="page" value="{page}">'
+        f'{_log_summary(rows)}'
         f'<div class="log-list">{"".join(parts)}</div>'
         f'{pager}'
     )

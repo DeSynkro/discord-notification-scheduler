@@ -11,6 +11,8 @@ from fastapi import APIRouter, Form, Request
 from app.responses import SafeHTMLResponse as HTMLResponse
 
 from app.discord import deliver
+from app.colors import effective_color
+from app.icons import icon
 from app.models import DAYS_OF_WEEK, TIMEZONES, CalendarAlert
 from app.recurrence import compute_next_fire, occurrences_between
 from app.render import escape, message_fields, timezone_input, webhook_options
@@ -81,13 +83,14 @@ def _build_alert(
     timezone: str,
     repeat: str,
     embed_title: str,
-    embed_color: str,
     color: str = "#3FB950",
     existing: dict | None = None,
+    for_test: bool = False,
 ) -> CalendarAlert:
+    chosen_color = (color or "#3FB950").strip()
     embed = None
     if message_type == "embed":
-        embed = {"title": embed_title or None, "color": embed_color or None}
+        embed = {"title": embed_title or None, "color": chosen_color}
 
     preserved = {}
     if existing:
@@ -107,7 +110,7 @@ def _build_alert(
         timezone=timezone,
         repeat=repeat,
         embed=embed,
-        color=(color or "#3FB950").strip(),
+        color=chosen_color,
     )
     alert.next_fire = compute_next_fire(
         dt_date.fromisoformat(alert.date),
@@ -116,7 +119,7 @@ def _build_alert(
         alert.repeat,
         after_utc=_now(),
     )
-    if alert.repeat == "none" and alert.next_fire is None:
+    if not for_test and alert.repeat == "none" and alert.next_fire is None:
         raise ValueError("One-time alerts must be in the future")
     return alert
 
@@ -128,7 +131,7 @@ def render_modal(alert: CalendarAlert | None = None, prefill_date: str = "") -> 
     is_edit = alert is not None
     action = f'/calendar/{escape(alert.id)}' if is_edit else '/calendar'
     method = "hx-put" if is_edit else "hx-post"
-    title = "Edit Calendar Alert" if is_edit else "New Calendar Alert"
+    title = "Edit calendar alert" if is_edit else "New calendar alert"
     name_val = escape(alert.name) if alert else ""
     msg_val = alert.message if alert else ""
     msg_type = alert.message_type if alert else "text"
@@ -150,19 +153,19 @@ def render_modal(alert: CalendarAlert | None = None, prefill_date: str = "") -> 
       </div>"""
         left_actions = f"""<div style="display:flex;gap:0.5rem">
           <button type="button" class="btn btn-danger btn-sm" hx-delete="/calendar/{escape(alert.id)}" hx-swap="none" hx-confirm="Delete this alert?">Delete</button>
-          <button type="button" class="btn btn-sm" hx-post="/calendar/{escape(alert.id)}/test" hx-swap="none">&#x25b6; Test</button>
+          <button type="button" class="btn btn-sm" hx-post="/calendar/{escape(alert.id)}/test" hx-include="closest form" hx-swap="none">{icon("play", 12)} Test</button>
         </div>"""
     else:
         enabled_row = ""
         left_actions = "<span></span>"
 
-    submit_label = "Save" if is_edit else "Create Alert"
+    submit_label = "Save" if is_edit else "Create alert"
 
     return f"""<div id="modal-overlay" class="modal-overlay" onclick="closeModal(event)">
   <div class="modal-content" onclick="event.stopPropagation()">
     <div class="modal-header">
       <h3>{title}</h3>
-      <button class="btn-icon" onclick="closeModal()">&times;</button>
+      <button type="button" class="btn-icon" onclick="closeModal()" aria-label="Close">{icon("x", 16)}</button>
     </div>
     <form {method}="{action}" hx-swap="none" id="calendar-form">
       {enabled_row}
@@ -193,10 +196,10 @@ def render_modal(alert: CalendarAlert | None = None, prefill_date: str = "") -> 
         </div>
       </div>
 
-      <label>Color</label>
+      <label for="calendar-color">Color<span class="hint"> used for the calendar, rail pin and embed</span></label>
       <div class="color-row">
-        <input type="color" name="color" value="{color_val}" oninput="this.nextElementSibling.value=this.value">
-        <input type="text" class="color-text" value="{color_val}" maxlength="7" oninput="this.previousElementSibling.value=this.value">
+        <input type="color" id="calendar-color" value="{color_val}" aria-label="Pick calendar color" oninput="this.nextElementSibling.value=this.value">
+        <input type="text" name="color" class="color-text" id="calendar-color-hex" value="{color_val}" maxlength="7" required pattern="^#[0-9a-fA-F]{{6}}$" title="Hex color, e.g. #3FB950" aria-label="Calendar color hex" oninput="this.previousElementSibling.value=this.value">
       </div>
 
       {timezone_input(tz_val, TIMEZONES)}
@@ -279,7 +282,7 @@ def _weekly_events_by_day(month: dt_date, alarms: list[dict]) -> dict[dt_date, l
             day = display_dt.date()
             if start <= day < end:
                 grouped.setdefault(day, []).append(
-                    _event("weekly", alarm, display_dt.strftime("%H:%M"))
+                    _event("weekly", alarm, display_dt.strftime("%H:%M"), effective_color(alarm))
                 )
     return grouped
 
@@ -340,7 +343,7 @@ def _events_for_day(
             for display_dt in _weekly_occurrences(alarm, day_start, day_end):
                 if display_dt.date() == day:
                     events.append(
-                        _event("weekly", alarm, display_dt.strftime("%H:%M"))
+                        _event("weekly", alarm, display_dt.strftime("%H:%M"), effective_color(alarm))
                     )
 
     for row in alerts:
@@ -377,9 +380,8 @@ def _event_url(event: dict) -> str:
 
 def _event_pill(event: dict) -> str:
     style = ""
-    if event["kind"] == "calendar" and event.get("color"):
-        color = escape(event["color"])
-        style = f' style="border-color: {color}; background: {color}26; color: var(--text-bright);"'
+    if event.get("color"):
+        style = f' style="--event-color: {escape(event["color"])};"'
     disabled = " disabled" if event.get("enabled") is False else ""
     title = f'{escape(event["name"])}, {escape(event["time"])}'
     if event.get("enabled") is False:
@@ -470,9 +472,9 @@ def render_month(
 <div class="cal-header">
   <div class="cal-controls">
     <button class="btn btn-sm" hx-get="/calendar?month={today_month}" hx-target="#calendar-view" hx-swap="innerHTML" hx-trigger="click" hx-include="#show-weekly, #show-past">Today</button>
-    <button class="btn-icon" hx-get="/calendar?month={prev_month}" hx-target="#calendar-view" hx-swap="innerHTML" hx-trigger="click" hx-include="#show-weekly, #show-past" title="Previous month">&#x2039;</button>
+    <button class="btn-icon" hx-get="/calendar?month={prev_month}" hx-target="#calendar-view" hx-swap="innerHTML" hx-trigger="click" hx-include="#show-weekly, #show-past" title="Previous month">{icon("chevron-left", 16)}</button>
     <span class="cal-month">{month.strftime('%B %Y')}</span>
-    <button class="btn-icon" hx-get="/calendar?month={next_month}" hx-target="#calendar-view" hx-swap="innerHTML" hx-trigger="click" hx-include="#show-weekly, #show-past" title="Next month">&#x203a;</button>
+    <button class="btn-icon" hx-get="/calendar?month={next_month}" hx-target="#calendar-view" hx-swap="innerHTML" hx-trigger="click" hx-include="#show-weekly, #show-past" title="Next month">{icon("chevron-right", 16)}</button>
   </div>
   <div class="cal-actions">
     <label class="cal-toggle" title="Show weekly alarms on the calendar">
@@ -487,7 +489,7 @@ def render_month(
              hx-include="#cal-month, #show-weekly" hx-trigger="change">
       Show past alerts
     </label>
-    <button class="btn btn-primary btn-sm" hx-get="/calendar/new?date={new_date.isoformat()}" hx-target="#modal-area" hx-swap="innerHTML" hx-trigger="click">+ New Alert</button>
+    <button class="btn btn-primary btn-sm" hx-get="/calendar/new?date={new_date.isoformat()}" hx-target="#modal-area" hx-swap="innerHTML" hx-trigger="click">{icon("plus", 14)} New alert</button>
   </div>
 </div>"""
 
@@ -516,14 +518,13 @@ def render_day_modal(
     for event in events:
         label = "Weekly alarm" if event["kind"] == "weekly" else "Calendar alert"
         style = ""
-        if event["kind"] == "calendar" and event.get("color"):
-            color = escape(event["color"])
-            style = f' style="border-color: {color}; background: {color}26; color: var(--text-bright);"'
+        if event.get("color"):
+            style = f' style="--event-color: {escape(event["color"])};"'
         disabled = " disabled" if event.get("enabled") is False else ""
         rows.append(f"""<div class="day-event-row">
   <span class="cal-event {event['kind']}{disabled}"{style}>{escape(event['name'])}</span>
   <span class="day-event-meta">{escape(event['time'])} &middot; {label}</span>
-  <button class="btn-icon btn-icon-xs" hx-get="{_event_url(event)}" hx-target="#modal-area" hx-swap="innerHTML" title="Edit">&#x270e;</button>
+  <button class="btn-icon btn-icon-xs" hx-get="{_event_url(event)}" hx-target="#modal-area" hx-swap="innerHTML" title="Edit" aria-label="Edit">{icon("pencil", 14)}</button>
 </div>""")
 
     body = "".join(rows) or '<p class="empty">No alerts on this day.</p>'
@@ -531,12 +532,12 @@ def render_day_modal(
   <div class="modal-content" onclick="event.stopPropagation()">
     <div class="modal-header">
       <h3>{day.strftime('%A, %B %-d')}</h3>
-      <button class="btn-icon" onclick="closeModal()">&times;</button>
+      <button type="button" class="btn-icon" onclick="closeModal()" aria-label="Close">{icon("x", 16)}</button>
     </div>
     <div class="day-list">{body}</div>
     <div class="modal-actions" style="justify-content:space-between">
       <button type="button" class="btn" onclick="closeModal()">Close</button>
-      <button class="btn btn-primary" hx-get="/calendar/new?date={day.isoformat()}" hx-target="#modal-area" hx-swap="innerHTML">+ Add alert</button>
+      <button class="btn btn-primary" hx-get="/calendar/new?date={day.isoformat()}" hx-target="#modal-area" hx-swap="innerHTML">{icon("plus", 14)} Add alert</button>
     </div>
   </div>
 </div>"""
@@ -634,13 +635,12 @@ async def create_calendar_alert(
     timezone: Annotated[str, Form()],
     repeat: Annotated[str, Form()] = "none",
     embed_title: Annotated[str, Form()] = "",
-    embed_color: Annotated[str, Form()] = "",
     color: Annotated[str, Form()] = "#3FB950",
 ):
     try:
         alert = _build_alert(
             name, webhook_name, message, message_type,
-            date, time, timezone, repeat, embed_title, embed_color,
+            date, time, timezone, repeat, embed_title,
             color=color,
         )
     except Exception as exc:
@@ -671,7 +671,6 @@ async def update_calendar_alert(
     timezone: Annotated[str, Form()],
     repeat: Annotated[str, Form()] = "none",
     embed_title: Annotated[str, Form()] = "",
-    embed_color: Annotated[str, Form()] = "",
     color: Annotated[str, Form()] = "#3FB950",
 ):
     rows = read_json("calendar")
@@ -682,7 +681,7 @@ async def update_calendar_alert(
     try:
         alert = _build_alert(
             name, webhook_name, message, message_type,
-            date, time, timezone, repeat, embed_title, embed_color,
+            date, time, timezone, repeat, embed_title,
             color=color,
             existing=rows[idx],
         )
@@ -763,29 +762,52 @@ async def toggle_calendar_alert(alert_id: str):
 
 
 @router.post("/calendar/{alert_id}/test", response_class=HTMLResponse)
-async def test_calendar_alert(alert_id: str):
+async def test_calendar_alert(alert_id: str, request: Request):
     rows = read_json("calendar")
     row = next((r for r in rows if r["id"] == alert_id), None)
     if row is None:
         return HTMLResponse("", status_code=404, headers=_toast("Alert not found", "err"))
 
+    form = await request.form()
     try:
-        alert = CalendarAlert(**row)
+        if "name" in form:
+            alert = _build_alert(
+                str(form.get("name") or ""),
+                str(form.get("webhook_name") or ""),
+                str(form.get("message") or ""),
+                str(form.get("message_type") or "text"),
+                str(form.get("date") or ""),
+                str(form.get("time") or ""),
+                str(form.get("timezone") or "UTC"),
+                str(form.get("repeat") or "none"),
+                str(form.get("embed_title") or ""),
+                color=str(form.get("color") or row.get("color") or "#3FB950"),
+                existing=row,
+                for_test=True,
+            )
+        else:
+            alert = CalendarAlert(**row)
     except Exception as exc:
         return HTMLResponse("", status_code=400, headers=_toast(_error_text(exc), "err"))
 
     success, err = await deliver(alert, "test", alert.id)
+
+    latest = read_json("calendar")
+    idx = next((i for i, r in enumerate(latest) if r["id"] == alert_id), None)
+    if idx is not None:
+        if success:
+            latest[idx]["last_fired"] = _now().isoformat()
+            latest[idx]["last_error"] = None
+        else:
+            latest[idx]["last_error"] = err
+        write_json("calendar", latest)
+
     if success:
-        row["last_fired"] = _now().isoformat()
-        row["last_error"] = None
-        write_json("calendar", rows)
         return HTMLResponse(
             "",
-            headers={**_toast("Test message sent!"), "HX-Trigger": "refresh-lists"},
+            headers={**_toast("Test message sent"), "HX-Trigger": "refresh-lists"},
         )
 
-    row["last_error"] = err
-    write_json("calendar", rows)
     return HTMLResponse(
         "",
         headers={**_toast(f"Test failed: {err}", "err"), "HX-Trigger": "refresh-lists"},

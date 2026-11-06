@@ -1,22 +1,24 @@
 <p align="center">
-  <img src="app/static/favicon/android-chrome-192x192.png" width="64" alt="logo">
+  <img src="brand/banner.png" alt="logo">
 </p>
 
-<h1 align="center">Discord Notification Scheduler</h1>
-
 <p align="center">
-  A self-hosted web app to schedule and send Discord webhook messages at specific
-  times or dates. Runs entirely in Docker with no host dependencies.
+  <strong>A self-hosted web app to schedule and send Discord webhook messages at specific
+  times or dates.</strong><br> Runs entirely in Docker with no host dependencies.
 </p>
 
 <p align="center">
   <a href="https://codeberg.org/DeSynkro/discord-notification-scheduler/src/branch/main/LICENSE"><img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="License: GPL v3"></a>
+  <a href="VERSION"><img src="https://img.shields.io/badge/version-2.0.0-orange.svg" alt="Version 2.0.0"></a>
+  <a href="https://ko-fi.com/desynkro"><img src="https://img.shields.io/badge/Ko--fi-support%20me-ff5e5b?logo=kofi&amp;logoColor=white" alt="Support me on Ko-fi"></a>
 </p>
 
 <p align="center">
   Built by <a href="https://desynkro.com">DeSynkro</a>
   with assistance from <a href="https://opencode.ai">Opencode</a>.
 </p>
+
+<p align="center">A self-hosted control room for scheduled Discord messages. Set weekly alarms or calendar alerts, send text or embeds to any channel, and keep the schedule, history, and webhook URLs on your own hardware. One Docker container, plain JSON, no telemetry.</p>
 
 <p align="center">
   Made with love for the community, and a special thank you to everyone who was
@@ -35,7 +37,6 @@
 git clone https://codeberg.org/DeSynkro/discord-notification-scheduler.git
 cd discord-notification-scheduler
 mkdir -p data
-sudo chown -R 1001:1001 data/
 docker compose up -d
 ```
 
@@ -59,7 +60,7 @@ docker compose up --build -d
 4.  Give it a name and select the channel where messages will appear
 5.  Copy the webhook URL. It looks like:
     `https://discord.com/api/webhooks/123456789/abc-xyz...`
-6.  Return to the app, click **+ Add** in the Webhooks section, and paste the URL
+6.  Return to the app, open **Channels** in the sidebar, click **Add**, and paste the URL
 
 > Webhooks can only be created in servers, not in direct messages.
 > You need "Manage Webhooks" permission on the server.
@@ -67,24 +68,32 @@ docker compose up --build -d
 ## Screenshots
 
 <p align="center">
-  <a href="https://codeberg.org/DeSynkro/discord-notification-scheduler/raw/branch/main/app/static/screenshots/dashboard.webp" target="_blank">
-    <img src="app/static/screenshots/dashboard.webp" width="48%" alt="Dashboard">
-  </a>
-  <a href="https://codeberg.org/DeSynkro/discord-notification-scheduler/raw/branch/main/app/static/screenshots/alarm-form.webp" target="_blank">
-    <img src="app/static/screenshots/alarm-form.webp" width="48%" alt="Alarm form">
-  </a>
+  <img src="preview/alarms.png" width="49%" alt="Alarms and the next-delivery board">
+  <img src="preview/calendar.png" width="49%" alt="Calendar">
+</p>
+<p align="center">
+  <img src="preview/log.png" width="49%" alt="Notification log">
+  <img src="preview/import.png" width="49%" alt="Import dialog">
+</p>
+<p align="center">
+  <img src="preview/mobile-alarms.png" width="31%" alt="Mobile alarms">
+  <img src="preview/empty.png" width="65%" alt="Empty state">
 </p>
 
 
 ## Why this exists
 
-There are plenty of hosted services that can fire a webhook on a schedule. but
-they require trust, trust that your webhook URL wont be logged, trust that
-your message content isn't mined, trust that the service will be around next
-month.
+It's a funny story why I came up with this in the first place.
+My sister in law was working on her portfolio, and she asked me to remind her every day for her to do her portfolio because she needed it done.
 
-This project flips that. You run it on your own machine, your own network,
-your own terms. No signup, no API keys to a third party, no vendor lock-in.
+After the first three days, I got tired of messaging her. So I did what every normal person would do... I started working on this app to do it for me.
+
+Now I have a Discord Webhook set up on her server tagging her every single day for her to do her portfolio.
+
+There are plenty of hosted services that can trigger webhooks on a schedule. But they require trust. Trust that your webhook URL wont be logged, trust that your message content isn't mined, trust that the service will be around next month.
+
+This project flips that. You run it on your own machine, your own network, your own terms. No signup, no API keys to a third party, no vendor lock-in.
+
 Just Docker and a JSON file you can copy with one command.
 
 ## Features
@@ -92,7 +101,7 @@ Just Docker and a JSON file you can copy with one command.
 -   **Self-hosted and private** - runs on your hardware, zero cloud
     dependencies
 -   **Zero telemetry** - no analytics, no tracking, no phone-home, no CDN
--   **Your data, your rules** - webhooks, alarms, and calendar alerts stored
+-   **Your data, your rules** - channels, alarms, and calendar alerts stored
     as plain JSON, fully portable, backup by copying one folder
 -   **SSRF-safe** - webhook URLs validated against Discords exact pattern;
     no arbitrary outbound requests
@@ -100,30 +109,30 @@ Just Docker and a JSON file you can copy with one command.
     message you scheduled, delivered to Discord over HTTPS; no CDN, no font
     hosts, no third-party servers
 -   One `docker compose up` and done
--   Dark-themed web UI using HTMX and FastAPI
+-   Dark control-room UI with a live next-delivery board and 24-hour rail
 -   Calendar alerts with one-time, daily, weekly, monthly, and yearly repeats
--   Per-alert color picker for calendar events
+-   Per-alert color for alarms and calendar alerts, used on the rail pin and in the Discord embed
 -   Show weekly alarms toggle on the calendar
 -   Month grid with month navigation and a day list
--   Bubble navigation for alarms, calendar, and the notification log
+-   Sidebar navigation for channels, alarms, calendar, and the notification log
 -   Notification log of scheduled sends and manual tests, kept locally
--   Plain text and rich embed messages (title, optional color picker)
+-   Plain text and rich embed messages (title and color)
 -   Per-alert timezone override with searchable autocomplete
 -   Markdown preview in the compose form
 -   60-second polling loop, no external cron needed
 -   429 rate-limit handling with Retry-After backoff
--   Test buttons for alarms, calendar alerts, and webhooks
+-   Test buttons for alarms, calendar alerts, and channels
 
 ## Calendar alerts
 
-Switch to the **Calendar** bubble to see a month grid. Weekly alarms appear in
-blue on their weekdays. Dated alerts appear in green.
+Open **Calendar** in the sidebar to see a month grid. Weekly alarms appear on
+their weekdays in their alarm colors; dated alerts appear in their own colors.
 
 -   Click a day to create an alert for that date
 -   Click an event to edit it
 -   Pick a color for each calendar alert
--   Use the Show weekly alarms checkbox to hide or show the blue weekly
-    projections. The choice is remembered across reloads.
+-   Use the Show weekly alarms checkbox to hide or show the weekly projections.
+    The choice is remembered across reloads.
 -   Use the day list when a day has more than three events
 -   Fired and past calendar alerts are hidden by default; the Show past alerts
     checkbox reveals them
@@ -131,7 +140,7 @@ blue on their weekdays. Dated alerts appear in green.
 -   One-time alerts deactivate after they fire
 -   Monthly and yearly repeats clamp to the last valid day when needed
 
-The **Log** bubble shows recent sends from weekly alarms, calendar alerts, and
+The **Log** view shows recent sends from weekly alarms, calendar alerts, and
 manual tests. It keeps the newest 500 entries and is not included in exports.
 Entries are shown 10 per page.
 
@@ -146,8 +155,8 @@ Entries are shown 10 per page.
 | | No cookies, no fingerprinting |
 
 The only network request leaving your network is the webhook POST to Discord.
-HTMX, fonts, and all other assets are served directly from the app itself,
-   with no CDN, analytics, or third-party servers contacted on page load.
+HTMX and all other assets are served directly from the app itself, with no CDN,
+analytics, or third-party servers contacted on page load.
 
 ## Tech Stack
 
@@ -155,59 +164,24 @@ HTMX, fonts, and all other assets are served directly from the app itself,
 |-------|-----|
 | Backend | Python 3.12 + FastAPI |
 | Frontend | HTMX + Jinja2 (no JavaScript framework) |
-| Styling | CSS with dark theme and subtle gradients |
+| Styling | CSS, ink control-room theme, no framework |
 | Scheduler | APScheduler (AsyncIOScheduler, 60s polling loop) |
 | HTTP | httpx (async) |
 | Validation | Pydantic v2 |
 | Container | Docker / Docker Compose (single container) |
 | Persistence | Plain JSON files (no database) |
 
-## Project structure
-
-```text
-├── docker-compose.yml      Single service, port 9001
-├── Dockerfile              python:3.12-slim, non-root (uid 1001)
-├── requirements.txt        Runtime dependencies
-├── requirements-dev.txt    Test dependencies
-├── pytest.ini              Test configuration
-├── .dockerignore           Keeps data and docs out of the build context
-├── .gitignore              Git rules
-├── LICENSE                 GPL v3
-├── README.md               This file
-├── app/
-│   ├── __init__.py         Version
-│   ├── main.py             FastAPI routes, dashboard, import and export
-│   ├── calendar_alerts.py  Calendar routes, grid, and modal
-│   ├── recurrence.py       Next-fire and date range projection
-│   ├── notification_log.py Log storage and cap
-│   ├── render.py           Shared form helpers and log rendering
-│   ├── models.py           Pydantic schemas with validation
-│   ├── storage.py          Thread-safe atomic JSON read/write
-│   ├── scheduler.py        60-second polling loop
-│   ├── discord.py          Async webhook sender with rate-limit handling
-│   ├── templates/
-│   │   └── index.html      Single-page dashboard
-│   └── static/
-│       ├── style.css       Dark theme styles
-│       ├── htmx.min.js     HTMX v2.0.4 (self-hosted)
-│       ├── desynkro.png    DeSynkro logo
-│       ├── fonts/          Inter variable font (self-hosted)
-│       ├── favicon/        Full favicon set
-│       └── screenshots/    Dashboard and form previews
-├── tests/                  Pytest suite
-└── data/                   Auto-created at startup (gitignored)
-    ├── alarms.json
-    ├── webhooks.json
-    ├── calendar.json
-    └── log.json
-```
-
 ## Troubleshooting
 
 ### Permission errors on data/
 
-The container runs as uid 1001 and needs write access to `./data/`. If you see
-permission errors, the files are likely owned by your host user:
+The container runs as uid 1001 and needs write access to `./data/`. The
+entrypoint makes the mounted folder writable before dropping privileges, so a
+fresh bind mount created by Docker as root should just work.
+
+If you still see permission errors, for example because you run the app outside
+Docker or the files themselves are read-only, give the data folder to the app
+user:
 
 ```bash
 mkdir -p data
@@ -247,8 +221,7 @@ GNU General Public License v3.0 or later. See [LICENSE](LICENSE).
 
 -   Built by [DeSynkro](https://desynkro.com)
 -   Assisted by [Opencode](https://opencode.ai)
--   Thank you to the self-hosted and Discord communities for being welcoming
-
+-   Thank you to the self-hosted communities for being welcoming
 
 <p align="center">
   <a href="https://desynkro.com" target="_blank">

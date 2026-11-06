@@ -67,6 +67,11 @@ def test_dashboard_has_bubbles_and_views(client):
     assert 'id="sort-select"' in html
 
 
+def test_stylesheet_url_is_cache_busted(client):
+    html = client.get("/").text
+    assert re.search(r"/static/style\.css\?v=[0-9a-f]{10}", html)
+
+
 def test_calendar_view_does_not_inherit_include():
     html = Path("app/templates/index.html").read_text()
     assert 'hx-disinherit="hx-include"' in html

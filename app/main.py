@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import re
@@ -16,11 +17,14 @@ from fastapi.templating import Jinja2Templates
 from zoneinfo import ZoneInfo
 
 from app.models import Alarm, CalendarAlert, DAYS_OF_WEEK, TIMEZONES, Webhook
-from app.storage import read_json, write_json
+from app.storage import StorageError, read_json, write_json
 from app.recurrence import compute_next_fire
-from app.render import escape, message_fields, render_log, timezone_input, webhook_options
-from app.calendar_alerts import current_month, render_month, router as calendar_router
+from app.render import channel_label, escape, message_fields, render_log, timezone_input, webhook_options
+from app.icons import icon
+from app.calendar_alerts import DISPLAY_TZ, current_month, render_month, router as calendar_router
+from app.colors import effective_color
 from app.notification_log import clear_log
+from app.next_up import board_data, render_next_up, time_ago
 from app.scheduler import start as start_scheduler, stop as stop_scheduler
 from app.discord import deliver
 
@@ -37,6 +41,18 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 app.include_router(calendar_router)
+
+
+@app.exception_handler(StorageError)
+async def storage_error_handler(request: Request, exc: StorageError):
+    return Response(
+        "",
+        status_code=500,
+        headers={
+            "X-Toast-Message": "Could not save data. The data folder is not writable.",
+            "X-Toast-Type": "err",
+        },
+    )
 
 
 @app.middleware("http")
@@ -67,6 +83,7 @@ templates = Jinja2Templates(directory=str(templates_dir))
 
 static_dir = Path(__file__).resolve().parent / "static"
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+STYLE_VERSION = hashlib.sha1((static_dir / "style.css").read_bytes()).hexdigest()[:10]
 
 
 def _to_12h(time_24: str) -> str:
@@ -84,7 +101,7 @@ def _to_12h(time_24: str) -> str:
 
 def _alarm_card_html(alarm: dict, webhooks: list[dict]) -> str:
     hook = next((w for w in webhooks if w["name"] == alarm["webhook_name"]), None)
-    hook_label = f'<em>{escape(alarm["webhook_name"])}</em>' if not hook else escape(hook["name"])
+    hook_label = channel_label(alarm["webhook_name"], missing=not hook)
 
     days_str = ", ".join(d[:3] for d in alarm["days"]) if alarm["days"] else "All"
     if days_str == "Mon, Tue, Wed, Thu, Fri, Sat, Sun":
@@ -96,8 +113,12 @@ def _alarm_card_html(alarm: dict, webhooks: list[dict]) -> str:
 
     enabled = alarm["enabled"]
     time_12h = _to_12h(alarm["time"])
+    try:
+        clock, period = time_12h.rsplit(" ", 1)
+    except ValueError:
+        clock, period = time_12h, ""
     tz_label = escape(alarm.get("timezone", "UTC"))
-    msg_type_label = "Rich Embed" if alarm.get("message_type") == "embed" else "Plain Text"
+    msg_type_label = "Rich embed" if alarm.get("message_type") == "embed" else "Plain text"
 
     badge = ""
     if alarm.get("last_fired"):
@@ -110,33 +131,39 @@ def _alarm_card_html(alarm: dict, webhooks: list[dict]) -> str:
             except (KeyError, ValueError):
                 t_local = t
             ts = t_local.strftime("%b %-d, %-I:%M %p")
-            badge = f'<span class="badge badge-ok" title="Last sent {ts}">Sent {ts}</span>'
+            ago = time_ago(alarm["last_fired"])
+            label = f"Sent {ago}" if ago else "Sent"
+            badge = f'<span class="badge badge-ok" title="Last sent {ts}"><span class="dot"></span>{label}</span>'
         except Exception:
             pass
     if alarm.get("last_error"):
-        badge += f'<span class="badge badge-err" title="{escape(alarm["last_error"])}">Failed</span>'
+        badge += f'<span class="badge badge-err" title="{escape(alarm["last_error"])}"><span class="dot"></span>Failed</span>'
+    if not enabled:
+        badge += '<span class="badge badge-off"><span class="dot"></span>Paused</span>'
 
     alarm_id = escape(alarm["id"])
     toggle_url = f'/alarms/{alarm_id}/toggle'
     delete_url = f'/alarms/{alarm_id}'
     edit_url = f'/alarms/{alarm_id}'
     test_url = f'/alarms/{alarm_id}/test'
+    card_cls = "alarm-card" if enabled else "alarm-card is-off"
 
-    return f"""<div class="alarm-card" id="alarm-{alarm_id}">
+    return f"""<div class="{card_cls}" id="alarm-{alarm_id}">
   <div class="alarm-main">
+    <div class="alarm-time">{clock}<span class="alarm-period">{period}</span></div>
     <div class="alarm-info">
       <strong>{escape(alarm["name"])}</strong>
-      <span class="alarm-meta">&#x1f4e2; {hook_label} &middot; &#x1f552; {time_12h} &middot; {days_str} &middot; &#x1f310; {tz_label} &middot; &#x1f4dd; {msg_type_label}</span>
+      <span class="alarm-meta">{hook_label}<span class="sep">/</span>{days_str}<span class="sep">/</span>{tz_label}<span class="sep">/</span>{msg_type_label}</span>
     </div>
     <div class="alarm-badges">{badge}</div>
     <div class="alarm-actions">
-      <label class="toggle">
-        <input type="checkbox" hx-post="{toggle_url}" hx-target="#alarm-{alarm_id}" hx-swap="outerHTML" {"checked" if enabled else ""}>
+      <label class="toggle" title="{"Pause" if enabled else "Resume"} alarm">
+        <input type="checkbox" hx-post="{toggle_url}" hx-target="#alarm-{alarm_id}" hx-swap="outerHTML" {"checked" if enabled else ""} aria-label="{"Pause" if enabled else "Resume"} alarm">
         <span class="slider"></span>
       </label>
-      <button class="btn-icon" hx-get="{edit_url}" hx-target="#modal-area" hx-swap="innerHTML" title="Edit">&#x270e;</button>
-      <button class="btn-icon btn-icon-danger" hx-delete="{delete_url}" hx-target="#alarm-{alarm_id}" hx-swap="outerHTML" hx-confirm="Delete this alarm?" title="Delete">&#x2716;</button>
-      <button class="btn-test" hx-post="{test_url}" hx-target="#alarm-{alarm_id}" hx-swap="outerHTML" title="Send test">&#x25b6; Test</button>
+      <button class="btn-icon" hx-get="{edit_url}" hx-target="#modal-area" hx-swap="innerHTML" title="Edit" aria-label="Edit">{icon("pencil", 15)}</button>
+      <button class="btn-icon btn-icon-danger" hx-delete="{delete_url}" hx-target="#alarm-{alarm_id}" hx-swap="outerHTML" hx-confirm="Delete this alarm?" title="Delete" aria-label="Delete">{icon("trash", 15)}</button>
+      <button class="btn-test" hx-post="{test_url}" hx-target="#alarm-{alarm_id}" hx-swap="outerHTML" title="Send test" aria-label="Send test">{icon("play", 12)} Test</button>
     </div>
   </div>
 </div>"""
@@ -150,7 +177,7 @@ def _webhook_modal_form(wh: dict | None = None) -> str:
     is_edit = wh is not None
     action = f'/webhooks/{escape(wh["name"])}' if is_edit else '/webhooks'
     method = 'hx-put' if is_edit else 'hx-post'
-    title = 'Edit Webhook' if is_edit else 'New Webhook'
+    title = 'Edit webhook' if is_edit else 'New webhook'
     name_val = escape(wh["name"]) if wh else ""
     url_val = escape(wh["url"]) if wh else ""
 
@@ -158,7 +185,7 @@ def _webhook_modal_form(wh: dict | None = None) -> str:
   <div class="modal-content" onclick="event.stopPropagation()">
     <div class="modal-header">
       <h3>{title}</h3>
-      <button class="btn-icon" onclick="closeModal()">&times;</button>
+      <button type="button" class="btn-icon" onclick="closeModal()" aria-label="Close">{icon("x", 16)}</button>
     </div>
     <form {method}="{action}" hx-target="#webhook-list" hx-swap="innerHTML">
       <label>Name</label>
@@ -183,20 +210,22 @@ def _webhook_chip_html(wh: dict) -> str:
     test_url = f'/webhooks/{esc_name}/test'
     edit_url = f'/webhooks/{esc_name}/edit'
     return f"""<div class="webhook-chip">
-  <span class="wh-name">{esc_name}</span>
-  <button class="btn-icon btn-icon-xs" hx-get="{edit_url}" hx-target="#modal-area" hx-swap="innerHTML" title="Edit">&#x270e;</button>
-  <button class="btn-icon btn-icon-danger btn-icon-xs" hx-delete="{delete_url}" hx-target="closest .webhook-chip" hx-swap="outerHTML" hx-confirm="Delete webhook '{esc_name}'?" title="Delete">&times;</button>
-  <button class="btn-icon btn-icon-xs" hx-post="{test_url}" hx-swap="none" title="Test webhook">&#x25b6;</button>
+  <span class="wh-name"><span class="hash">#</span>{esc_name}</span>
+  <div class="wh-actions">
+    <button class="btn-icon" hx-get="{edit_url}" hx-target="#modal-area" hx-swap="innerHTML" title="Edit" aria-label="Edit">{icon("pencil", 13)}</button>
+    <button class="btn-icon btn-icon-danger" hx-delete="{delete_url}" hx-target="closest .webhook-chip" hx-swap="outerHTML" hx-confirm="Delete webhook '{esc_name}'?" title="Delete" aria-label="Delete">{icon("trash", 13)}</button>
+    <button class="btn-icon" hx-post="{test_url}" hx-swap="none" title="Test webhook" aria-label="Test webhook">{icon("play", 12)}</button>
+  </div>
 </div>"""
 
 
 @app.get("/webhooks/help", response_class=HTMLResponse)
 async def webhook_help():
-    return """<div id="modal-overlay" class="modal-overlay" onclick="closeModal(event)">
+    return f"""<div id="modal-overlay" class="modal-overlay" onclick="closeModal(event)">
   <div class="modal-content" onclick="event.stopPropagation()">
     <div class="modal-header">
-      <h3>Setting up a Discord Webhook</h3>
-      <button class="btn-icon" onclick="closeModal()">&times;</button>
+      <h3>Setting up a Discord webhook</h3>
+      <button type="button" class="btn-icon" onclick="closeModal()" aria-label="Close">{icon("x", 16)}</button>
     </div>
     <ol style="margin:0;padding-left:1.2rem;line-height:1.8">
       <li>Open a server you manage (or have "Manage Webhooks" permission in)</li>
@@ -205,7 +234,7 @@ async def webhook_help():
       <li>Give it a name and select the channel where messages will appear</li>
       <li>Copy the webhook URL. It looks like:<br>
         <code style="font-size:0.8rem;word-break:break-all">https://discord.com/api/webhooks/123456789/abc-xyz...</code></li>
-      <li>Return here, click <strong>+ Add</strong>, and paste the URL</li>
+      <li>Return here, open <strong>Channels</strong> in the sidebar, and click <strong>Add</strong></li>
     </ol>
     <p style="margin-top:1rem;padding:0.6rem;background:rgba(248,81,73,0.1);border-radius:6px;font-size:0.85rem">
       Webhooks can only be created in servers, not in direct messages.
@@ -237,11 +266,11 @@ async def export_data():
     )
 
 
-IMPORT_FORM = """<div id="modal-overlay" class="modal-overlay" onclick="closeModal(event)">
+IMPORT_FORM = f"""<div id="modal-overlay" class="modal-overlay" onclick="closeModal(event)">
   <div class="modal-content" onclick="event.stopPropagation()">
     <div class="modal-header">
       <h3>Import</h3>
-      <button class="btn-icon" onclick="closeModal()">&times;</button>
+      <button type="button" class="btn-icon" onclick="closeModal()" aria-label="Close">{icon("x", 16)}</button>
     </div>
     <form hx-encoding="multipart/form-data" hx-post="/import" hx-swap="none" id="import-form">
       <label>Backup file (.json)</label>
@@ -335,7 +364,8 @@ async def import_data(file: UploadFile, mode: str = Form("merge")):
     if mode == "replace":
         write_json("webhooks", imported_webhooks)
         write_json("alarms", imported_alarms)
-        write_json("calendar", imported_calendar)
+        if "calendar" in data:
+            write_json("calendar", imported_calendar)
         parts = []
         if total_wh != valid_wh:
             parts.append(f"{valid_wh}/{total_wh} webhooks (skipped {total_wh - valid_wh} invalid)")
@@ -345,7 +375,9 @@ async def import_data(file: UploadFile, mode: str = Form("merge")):
             parts.append(f"{valid_al}/{total_al} alarms (skipped {total_al - valid_al} invalid)")
         else:
             parts.append(f"{valid_al} alarms")
-        if total_cal != valid_cal:
+        if "calendar" not in data:
+            parts.append("calendar left unchanged")
+        elif total_cal != valid_cal:
             parts.append(f"{valid_cal}/{total_cal} calendar alerts (skipped {total_cal - valid_cal} invalid)")
         else:
             parts.append(f"{valid_cal} calendar alerts")
@@ -413,6 +445,7 @@ async def import_data(file: UploadFile, mode: str = Form("merge")):
 async def dashboard(request: Request):
     webhooks = read_json("webhooks")
     alarms = read_json("alarms")
+    calendar_rows = read_json("calendar")
     for a in alarms:
         a.setdefault("created", "2000-01-01T00:00:00")
     alarms.sort(key=lambda a: a["time"])
@@ -422,7 +455,7 @@ async def dashboard(request: Request):
         current_month(),
         webhooks,
         alarms,
-        read_json("calendar"),
+        calendar_rows,
         show_weekly=show_weekly,
         show_past=show_past,
     )
@@ -435,9 +468,24 @@ async def dashboard(request: Request):
         "days": DAYS_OF_WEEK,
         "calendar_html": calendar_html,
         "log_html": log_html,
+        "next_up_html": render_next_up(webhooks, alarms, calendar_rows),
+        "today_label": datetime.now(DISPLAY_TZ).strftime("%A, %B %-d"),
+        "clock_label": datetime.now(DISPLAY_TZ).strftime("%-I:%M %p"),
+        "style_version": STYLE_VERSION,
+        "icon": icon,
         "_alarm_card": _alarm_card_html,
         "_webhook_chip": _webhook_chip_html,
     })
+
+
+@app.get("/next-up", response_class=HTMLResponse)
+async def next_up_fragment():
+    return render_next_up(read_json("webhooks"), read_json("alarms"), read_json("calendar"))
+
+
+@app.get("/next-up/data")
+async def next_up_data():
+    return board_data(read_json("webhooks"), read_json("alarms"), read_json("calendar"))
 
 
 @app.get("/log", response_class=HTMLResponse)
@@ -643,7 +691,15 @@ async def list_alarms(sort: str = "time_asc"):
     elif sort == "name_desc":
         alarms.sort(key=lambda a: a["name"].lower(), reverse=True)
     parts = [_alarm_card_html(a, webhooks) for a in alarms]
-    response = "".join(parts) or '<span class="empty">No alarms yet</span>'
+    response = "".join(parts) or (
+        '<div class="empty-state">'
+        f'<span class="empty-icon">{icon("bell", 20)}</span>'
+        '<strong>No alarms scheduled</strong>'
+        '<span>Create an alarm to send a message on a weekly schedule.</span>'
+        '<button class="btn btn-primary" hx-get="/alarms/new" hx-target="#modal-area" hx-swap="innerHTML">'
+        f'{icon("plus", 14)} New alarm</button>'
+        '</div>'
+    )
     return HTMLResponse(response, headers={"X-Sort": sort})
 
 
@@ -660,7 +716,7 @@ def _form_html(alarm: dict | None = None) -> str:
     is_edit = alarm is not None
     action = f'/alarms/{escape(alarm["id"])}' if is_edit else "/alarms"
     method = "hx-put" if is_edit else "hx-post"
-    title = "Edit Alarm" if is_edit else "New Alarm"
+    title = "Edit alarm" if is_edit else "New alarm"
     name_val = escape(alarm["name"]) if alarm else ""
     msg_val = alarm["message"] if alarm else ""
     msg_len = len(msg_val)
@@ -668,12 +724,13 @@ def _form_html(alarm: dict | None = None) -> str:
     msg_type = alarm["message_type"] if alarm else "text"
     embed = alarm["embed"] if alarm else None
     hidden_id = escape(alarm["id"]) if alarm else ""
+    color_val = escape(effective_color(alarm) or "#8B9BFF")
 
     return f"""<div id="modal-overlay" class="modal-overlay" onclick="closeModal(event)">
   <div class="modal-content" onclick="event.stopPropagation()">
     <div class="modal-header">
       <h3>{title}</h3>
-      <button class="btn-icon" onclick="closeModal()">&times;</button>
+      <button type="button" class="btn-icon" onclick="closeModal()" aria-label="Close">{icon("x", 16)}</button>
     </div>
     <form {method}="{action}" hx-target="#alarm-list" hx-swap="innerHTML">
       <input type="hidden" name="id" value="{hidden_id}">
@@ -694,6 +751,12 @@ def _form_html(alarm: dict | None = None) -> str:
 
       <label>Days of week</label>
       <div class="days-row">{day_checks}</div>
+
+      <label for="alarm-color">Alarm color<span class="hint"> used for the rail pin and embed</span></label>
+      <div class="color-row">
+        <input type="color" id="alarm-color" value="{color_val}" aria-label="Pick alarm color" oninput="this.nextElementSibling.value=this.value">
+        <input type="text" name="color" class="color-text" id="alarm-color-hex" value="{color_val}" maxlength="7" required pattern="^#[0-9a-fA-F]{{6}}$" title="Hex color, e.g. #5865F2" aria-label="Alarm color hex" oninput="this.previousElementSibling.value=this.value">
+      </div>
 
       {timezone_input(tz_val, TIMEZONES)}
 
@@ -730,17 +793,18 @@ async def create_alarm(
     timezone: Annotated[str, Form()],
     days: Annotated[list[str], Form()] = [],
     embed_title: Annotated[str, Form()] = "",
-    embed_color: Annotated[str, Form()] = "",
+    color: Annotated[str, Form()] = "#8B9BFF",
 ):
     if not days:
         webhooks = read_json("webhooks")
         parts = [_alarm_card_html(a, webhooks) for a in read_json("alarms")]
         return HTMLResponse("".join(parts), status_code=400, headers={"X-Toast-Message": "Select at least one day", "X-Toast-Type": "err"})
 
+    chosen_color = (color or "#8B9BFF").strip()
     try:
         embed = None
         if message_type == "embed":
-            embed = {"title": embed_title or None, "color": embed_color or None}
+            embed = {"title": embed_title or None, "color": chosen_color}
         alarm = Alarm(
             name=name.strip(),
             webhook_name=webhook_name.strip(),
@@ -750,6 +814,7 @@ async def create_alarm(
             timezone=timezone,
             days=days or list(DAYS_OF_WEEK),
             embed=embed,
+            color=chosen_color,
         )
     except Exception as e:
         webhooks = read_json("webhooks")
@@ -778,7 +843,7 @@ async def update_alarm(
     timezone: Annotated[str, Form()],
     days: Annotated[list[str], Form()] = [],
     embed_title: Annotated[str, Form()] = "",
-    embed_color: Annotated[str, Form()] = "",
+    color: Annotated[str, Form()] = "",
 ):
     alarms = read_json("alarms")
     idx = next((i for i, a in enumerate(alarms) if a["id"] == alarm_id), None)
@@ -792,9 +857,10 @@ async def update_alarm(
         return HTMLResponse("".join(parts), status_code=400, headers={"X-Toast-Message": "Select at least one day", "X-Toast-Type": "err"})
 
     try:
+        chosen_color = (color or effective_color(alarms[idx]) or "#8B9BFF").strip()
         embed = None
         if message_type == "embed":
-            embed = {"title": embed_title or None, "color": embed_color or None}
+            embed = {"title": embed_title or None, "color": chosen_color}
         alarm = Alarm(
             id=alarm_id,
             created=alarms[idx].get("created") or datetime.now(ZoneInfo("UTC")).isoformat(),
@@ -806,6 +872,7 @@ async def update_alarm(
             timezone=timezone,
             days=days or list(DAYS_OF_WEEK),
             embed=embed,
+            color=chosen_color,
             enabled=alarms[idx].get("enabled", True),
             last_fired=alarms[idx].get("last_fired"),
             last_error=alarms[idx].get("last_error"),
@@ -851,7 +918,7 @@ async def toggle_alarm(alarm_id: str):
     write_json("alarms", alarms)
     webhooks = read_json("webhooks")
     card = _alarm_card_html(alarm, webhooks)
-    return HTMLResponse(card, headers={"HX-Trigger": "refresh-lists"})
+    return HTMLResponse(card, headers={"HX-Trigger": "alarm-toggled"})
 
 
 def _update_alarm_fields(alarm_id: str, **fields) -> None:
@@ -890,5 +957,5 @@ async def test_alarm(alarm_id: str):
     webhooks = read_json("webhooks")
     card = _alarm_card_html(raw, webhooks)
     if success:
-        return HTMLResponse(card, headers={"X-Toast-Message": "Test message sent!", "X-Toast-Type": "ok", "HX-Trigger": "refresh-lists"})
+        return HTMLResponse(card, headers={"X-Toast-Message": "Test message sent", "X-Toast-Type": "ok", "HX-Trigger": "refresh-lists"})
     return HTMLResponse(card, headers={"X-Toast-Message": f"Test failed: {err}", "X-Toast-Type": "err", "HX-Trigger": "refresh-lists"})

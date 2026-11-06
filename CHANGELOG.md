@@ -1,5 +1,53 @@
 # Changelog
 
+## 2.0.0
+
+### Added
+- A redesigned control-room interface: ink surfaces, hairline separators,
+  monospace metadata, one blurple accent, and a `#` channel marker.
+- A next-delivery board with a live countdown, a 24-hour rail, hover previews,
+  and click-to-edit pins and rows.
+- Both, Alarms, and Calendar board filters, with truthful delivery totals.
+- Per-alarm color, used for the rail pin and the Discord embed.
+- A unified inline SVG icon set, designed empty states, and content-hashed
+  stylesheet URLs.
+- Accessibility labels for modal close buttons and color inputs, a live toast
+  region, live board counts, and dark native form controls.
+
+### Changed
+- Sidebar navigation replaces the bubble navigation.
+- The calendar, log, import dialog, forms, and toasts now use the new shell.
+- Calendar Test uses the unsaved values currently in the modal.
+- Alarm and calendar colors are the single source for pins, calendar events,
+  and embeds; the separate embed-color picker is gone.
+- The Docker entrypoint now makes a bind-mounted `./data` writable, then drops
+  to the unprivileged app user.
+- Version is now 2.0.0.
+
+### Fixed
+- Imports and saves failed when Docker created `./data` as root.
+- The import modal close icon rendered as literal `{icon("x", 16)}` text.
+- Toggling an alarm rebuilt the alarm list, channels, and log unnecessarily.
+- The delivery board updated its clock even when the next delivery had not
+  changed.
+- Untouched edit modals were treated as dirty and prompted on close.
+- A calendar test could overwrite alerts added while the test was in flight.
+- A past one-time calendar alert could not be tested.
+- The visible hex field and the saved color could disagree; the visible field
+  is now the submitted value.
+- Import Replace could clear the calendar when the backup had no `calendar`
+  key.
+- Duplicate dirty-state listeners and unused rail data attributes.
+
+### Notes
+- The data format is unchanged. Existing 1.x `data/*.json` files are read
+  as-is, and imports still accept version 1 and version 2 backups.
+- The board renders up to 8 pins and rows. When there are more, the count and
+  filters report the true totals, such as `8 of 12` or `4 of 6 alarms`.
+- Hidden views still poll every 60 seconds.
+- Weekly alarms still have no catch-up for deliveries missed while the app was
+  stopped.
+
 ## 1.5.1
 
 ### Fixed

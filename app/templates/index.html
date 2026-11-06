@@ -4,130 +4,179 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Discord Notification Scheduler</title>
-  <link rel="icon" type="image/x-icon" href="/static/favicon/favicon.ico">
-  <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon/favicon-32x32.png">
-  <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon/favicon-16x16.png">
-  <link rel="apple-touch-icon" sizes="180x180" href="/static/favicon/apple-touch-icon.png">
-  <link rel="stylesheet" href="/static/style.css?v=1.5.5">
+  <meta name="theme-color" content="#0b0d14">
+  <link rel="icon" type="image/x-icon" href="/static/brand/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/brand/logo-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/static/brand/logo-16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/static/brand/logo-180.png">
+  <link rel="stylesheet" href="/static/style.css?v={{ style_version }}">
   <script src="/static/htmx.min.js"></script>
 </head>
 <body>
-  <div id="toast-area" class="toast-container"></div>
+  <div id="toast-area" class="toast-container" role="status" aria-live="polite"></div>
   <noscript>
-    <div style="background:#f85149;color:#fff;text-align:center;padding:0.6rem 1rem;font-size:0.85rem;font-weight:500;">
-      JavaScript is required for this app to function. Buttons, toggles, and forms will not work without it.
-    </div>
+    <div class="noscript">JavaScript is required for this app to function. Buttons, toggles, and forms will not work without it.</div>
   </noscript>
 
-  <header class="header">
-    <div class="header-inner">
-      <h1><img src="/static/favicon/favicon-32x32.png" class="header-logo" alt=""> Discord Notification Scheduler</h1>
-      <p class="subtitle">Schedule messages to Discord webhooks on your terms</p>
-      <div class="toolbar">
-        <a href="/export" class="btn btn-sm" download onclick="showToast('Export complete', 'ok')">&#x2913; Export</a>
-        <button class="btn btn-sm" hx-get="/import/form" hx-target="#modal-area" hx-swap="innerHTML">&#x2912; Import</button>
+  <aside class="sidebar">
+    <div class="brand">
+      <img src="/static/brand/logo.svg" class="brand-mark" alt="">
+      <div>
+        <span class="brand-name">Discord Notification Scheduler</span>
+        <span class="brand-meta">Self-hosted / LAN</span>
       </div>
+      <button class="btn-icon nav-toggle" onclick="toggleMenu()" aria-label="Menu" aria-expanded="false">{{ icon("menu", 18) | safe }}</button>
     </div>
-  </header>
 
-  <main class="container">
+    <nav class="nav" aria-label="Views">
+      <button class="nav-item active" data-view="alarms" onclick="showView('alarms')">
+        {{ icon("bell", 17, "nav-icon") | safe }}
+        <span>Alarms</span>
+        <span class="nav-count">{{ alarms | length }}</span>
+      </button>
+      <button class="nav-item" data-view="calendar" onclick="showView('calendar')">
+        {{ icon("calendar", 17, "nav-icon") | safe }}
+        <span>Calendar</span>
+      </button>
+      <button class="nav-item" data-view="log" onclick="showView('log')">
+        {{ icon("log", 17, "nav-icon") | safe }}
+        <span>Log</span>
+      </button>
+      <button class="nav-item" data-view="all" onclick="showView('all')">
+        {{ icon("layout", 17, "nav-icon") | safe }}
+        <span>All</span>
+      </button>
+    </nav>
 
-    <!-- Webhooks -->
-    <section class="section">
-      <div class="section-header">
-        <h2>&#x1f517; Webhooks</h2>
-        <div style="display:flex;gap:0.5rem;align-items:center">
-          <button class="btn-icon btn-icon-xs" hx-get="/webhooks/help" hx-target="#modal-area" hx-swap="innerHTML" title="How to set up a webhook">&#x24d8;</button>
-          <button class="btn btn-primary btn-sm" hx-get="/webhooks/new" hx-target="#modal-area" hx-swap="innerHTML">+ Add</button>
+    <div class="sidebar-section">
+      <div class="sidebar-section-head">
+        <span>Channels</span>
+        <div class="sidebar-section-actions">
+          <button class="btn-icon" hx-get="/webhooks/help" hx-target="#modal-area" hx-swap="innerHTML" title="How to set up a webhook" aria-label="How to set up a webhook">{{ icon("info", 14) | safe }}</button>
+          <button class="btn-icon" hx-get="/webhooks/new" hx-target="#modal-area" hx-swap="innerHTML" title="Add webhook" aria-label="Add webhook">{{ icon("plus", 14) | safe }}</button>
         </div>
       </div>
       <div id="webhook-list" class="webhook-list" hx-get="/webhooks" hx-trigger="refresh-lists from:body" hx-swap="innerHTML">
         {% for wh in webhooks %}
           {{ _webhook_chip(wh) | safe }}
         {% else %}
-          <span class="empty">No webhooks yet</span>
+          <span class="empty">No channels</span>
         {% endfor %}
       </div>
+      {% if webhooks %}
       <div class="delete-all">
         <a hx-delete="/webhooks" hx-target="#webhook-list" hx-swap="innerHTML"
            tabindex="0" role="button" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}"
            hx-confirm="Delete all webhooks? Alarms using them will be marked as deleted. This cannot be undone.">Delete all webhooks</a>
       </div>
-    </section>
+      {% endif %}
+    </div>
 
-    <!-- View bubbles -->
-    <nav class="view-tabs" role="tablist" aria-label="Views">
-      <button class="view-tab active" data-view="alarms" onclick="showView('alarms')">&#x23f0; Alarms</button>
-      <button class="view-tab" data-view="calendar" onclick="showView('calendar')">&#x1f4c5; Calendar</button>
-      <button class="view-tab" data-view="log" onclick="showView('log')">&#x1f4dc; Log</button>
-      <button class="view-tab" data-view="all" onclick="showView('all')">All</button>
-    </nav>
+    <div class="sidebar-footer">
+      <span class="sidebar-meta">{{ webhooks | length }} channel{{ '' if (webhooks | length) == 1 else 's' }} / {{ alarms | length }} alarm{{ '' if (alarms | length) == 1 else 's' }}</span>
+      <div class="sidebar-actions">
+        <a href="/export" class="btn btn-sm" download onclick="showToast('Export complete', 'ok')">{{ icon("download", 13) | safe }} Export</a>
+        <button class="btn btn-sm" hx-get="/import/form" hx-target="#modal-area" hx-swap="innerHTML">{{ icon("upload", 13) | safe }} Import</button>
+      </div>
+      <span class="sidebar-credit">Built with <span class="credit-heart" role="img" aria-label="love"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg></span> by <a href="https://desynkro.com" target="_blank" rel="noopener">DeSynkro</a></span>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div>
+        <h1 id="page-title">Alarms</h1>
+        <p id="page-subtitle">Weekly schedules and delivery state</p>
+      </div>
+      <div class="topbar-right">
+        <div class="topbar-clock">
+          <span class="clock-time" id="live-clock">{{ clock_label }}</span>
+          <span class="clock-date">{{ today_label }}</span>
+        </div>
+        <span class="topbar-meta"><span class="status-dot"></span>60s refresh</span>
+      </div>
+    </header>
 
     <!-- Alarms -->
     <section class="section" id="view-alarms">
-      <div class="section-header">
-        <h2>&#x23f0; Alarms</h2>
-        <div style="display:flex;gap:0.5rem;align-items:center">
-        <select id="sort-select" class="btn btn-sm sort-select" name="sort"
-                hx-get="/alarms" hx-target="#alarm-list" hx-swap="innerHTML"
-                hx-trigger="change">
-          <option value="created">Newest</option>
-          <option value="created_asc">Oldest</option>
-          <option value="time_asc" selected>Time &#x2191;</option>
-          <option value="time_desc">Time &#x2193;</option>
-          <option value="name">Name</option>
-          <option value="name_desc">Name &#x2193;</option>
-        </select>
-        <button class="btn btn-primary" hx-get="/alarms/new" hx-target="#modal-area" hx-swap="innerHTML">+ New Alarm</button>
+      {{ next_up_html | safe }}
+      <div class="section-toolbar">
+        <span class="section-label">Scheduled alarms</span>
+        <div class="section-toolbar-actions">
+          <select id="sort-select" class="sort-select" name="sort" aria-label="Sort alarms"
+                  hx-get="/alarms" hx-target="#alarm-list" hx-swap="innerHTML" hx-trigger="change">
+            <option value="created">Newest</option>
+            <option value="created_asc">Oldest</option>
+            <option value="time_asc" selected>Time ascending</option>
+            <option value="time_desc">Time descending</option>
+            <option value="name">Name A-Z</option>
+            <option value="name_desc">Name Z-A</option>
+          </select>
+          <button class="btn btn-primary" hx-get="/alarms/new" hx-target="#modal-area" hx-swap="innerHTML">{{ icon("plus", 14) | safe }} New alarm</button>
         </div>
       </div>
       <div id="alarm-list" class="alarm-list" hx-get="/alarms" hx-trigger="every 60s, refresh-lists from:body" hx-swap="innerHTML" hx-include="#sort-select">
         {% for alarm in alarms %}
           {{ _alarm_card(alarm, webhooks) | safe }}
         {% else %}
-          <span class="empty">No alarms yet</span>
+          <div class="empty-state">
+            <span class="empty-icon">{{ icon("bell", 20) | safe }}</span>
+            <strong>No alarms scheduled</strong>
+            <span>Create an alarm to send a message on a weekly schedule.</span>
+            <button class="btn btn-primary" hx-get="/alarms/new" hx-target="#modal-area" hx-swap="innerHTML">{{ icon("plus", 14) | safe }} New alarm</button>
+          </div>
         {% endfor %}
       </div>
+      {% if alarms %}
       <div class="delete-all">
         <a hx-delete="/alarms" hx-target="#alarm-list" hx-swap="innerHTML"
            tabindex="0" role="button" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}"
            hx-confirm="Delete all alarms? This cannot be undone.">Delete all alarms</a>
       </div>
+      {% endif %}
     </section>
 
     <!-- Calendar -->
-    <section class="section" id="view-calendar">
-      <div class="section-header">
-        <h2>&#x1f4c5; Calendar</h2>
-      </div>
-      <div id="calendar-view" hx-get="/calendar" hx-trigger="refresh-lists from:body" hx-include="#cal-month, #show-weekly, #show-past" hx-disinherit="hx-include" hx-swap="innerHTML">
+    <section class="section" id="view-calendar" style="display:none">
+      <div id="calendar-view" hx-get="/calendar" hx-trigger="refresh-lists from:body, alarm-toggled from:body" hx-include="#cal-month, #show-weekly, #show-past" hx-disinherit="hx-include" hx-swap="innerHTML">
         {{ calendar_html | safe }}
       </div>
     </section>
 
     <!-- Log -->
-    <section class="section" id="view-log">
-      <div class="section-header">
-        <h2>&#x1f4dc; Notification Log</h2>
-        <a class="log-clear" hx-delete="/log" hx-swap="none" hx-confirm="Clear the notification log?" tabindex="0" role="button" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}">Clear log</a>
+    <section class="section" id="view-log" style="display:none">
+      <div class="section-toolbar">
+        <span class="section-label">Recent deliveries</span>
+        <a class="log-clear" hx-delete="/log" hx-swap="none" hx-confirm="Clear the notification log?"
+           tabindex="0" role="button" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}">Clear log</a>
       </div>
       <div id="log-view" hx-get="/log" hx-trigger="every 60s, refresh-lists from:body" hx-include="#log-page" hx-disinherit="hx-include" hx-swap="innerHTML">
         {{ log_html | safe }}
       </div>
     </section>
-
   </main>
-
-  <footer class="footer">
-    BUILT WITH <span class="heart">&hearts;</span> BY <a href="https://desynkro.com" target="_blank">DESYNKRO</a>
-  </footer>
 
   <!-- Modal container -->
   <div id="modal-area"></div>
 
+  <div id="rail-tooltip" class="rail-tooltip" role="tooltip" aria-hidden="true">
+    <span class="rail-tooltip-kind"></span>
+    <span class="rail-tooltip-name"></span>
+    <span class="rail-tooltip-meta"><span class="rail-tooltip-time"></span><span class="rail-tooltip-channel"></span></span>
+    <span class="rail-tooltip-hint">Click to edit</span>
+  </div>
+
   <script>
+    function clearModalDirty() {
+      document.querySelectorAll('#modal-area form').forEach(function(form) {
+        form.dataset.dirty = '0';
+      });
+    }
+
     function closeModal(e) {
       if (e && e.target !== e.currentTarget) return;
+      var dirty = document.querySelector('#modal-area form[data-dirty="1"]');
+      if (dirty && !window.confirm('Discard unsaved changes?')) return;
       document.getElementById('modal-area').innerHTML = '';
     }
 
@@ -143,7 +192,10 @@
 
     document.getElementById('modal-area').addEventListener('htmx:afterSettle', function() {
       var ta = this.querySelector('textarea[name="message"]');
-      if (ta && ta.value) ta.dispatchEvent(new Event('input', {bubbles: true}));
+      if (ta && ta.value) {
+        ta.dispatchEvent(new Event('input', {bubbles: true}));
+        clearModalDirty();
+      }
     });
 
     document.getElementById('modal-area').addEventListener('input', function(e) {
@@ -190,15 +242,43 @@
     var _lastToastTime = 0;
     var _staggered = false;
 
+    function toggleMenu() {
+      var sidebar = document.querySelector('.sidebar');
+      var button = document.querySelector('.nav-toggle');
+      if (!sidebar) return;
+      var open = sidebar.classList.toggle('menu-open');
+      if (button) button.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+
+    function closeMenu() {
+      var sidebar = document.querySelector('.sidebar');
+      var button = document.querySelector('.nav-toggle');
+      if (sidebar) sidebar.classList.remove('menu-open');
+      if (button) button.setAttribute('aria-expanded', 'false');
+    }
+
+    var VIEW_META = {
+      alarms: ['Alarms', 'Weekly schedules and delivery state'],
+      calendar: ['Calendar', 'Weekly and dated alerts in your local time'],
+      log: ['Notification log', 'Recent deliveries and failures'],
+      all: ['Overview', 'Everything at a glance']
+    };
+
     function showView(view) {
       ['alarms', 'calendar', 'log'].forEach(function(name) {
         var el = document.getElementById('view-' + name);
         if (!el) return;
         el.style.display = (view === 'all' || view === name) ? '' : 'none';
       });
-      document.querySelectorAll('.view-tab').forEach(function(tab) {
+      document.querySelectorAll('.nav-item').forEach(function(tab) {
         tab.classList.toggle('active', tab.dataset.view === view);
       });
+      var meta = VIEW_META[view] || VIEW_META.alarms;
+      var title = document.getElementById('page-title');
+      var subtitle = document.getElementById('page-subtitle');
+      if (title) title.textContent = meta[0];
+      if (subtitle) subtitle.textContent = meta[1];
+      closeMenu();
       try { localStorage.setItem('dns.view', view); } catch (e) {}
     }
 
@@ -250,7 +330,6 @@
       }, ms);
     }
 
-    // Auto-dismiss any toast that enters the DOM (OOB or client-created)
     var obs = new MutationObserver(function(ms) {
       ms.forEach(function(m) {
         for (var i = 0; i < m.addedNodes.length; i++) {
@@ -264,11 +343,24 @@
     });
     obs.observe(document.getElementById('toast-area'), { childList: true });
 
+    function markModalDirty(e) {
+      var control = e.target;
+      if (!control || control.tagName === 'BUTTON' || control.tagName === 'A') return;
+      if (control.hasAttribute && (control.hasAttribute('hx-post') || control.hasAttribute('hx-put') || control.hasAttribute('hx-delete'))) return;
+      var form = control.closest ? control.closest('#modal-area form') : null;
+      if (form) form.dataset.dirty = '1';
+    }
+
+    document.getElementById('modal-area').addEventListener('change', markModalDirty);
+    document.getElementById('modal-area').addEventListener('input', markModalDirty);
+
     document.body.addEventListener('htmx:afterRequest', function(e) {
       if (e.detail.successful && e.detail.elt && e.detail.elt.id === 'import-form') {
+        clearModalDirty();
         closeModal();
       }
       if (e.detail.successful && e.detail.xhr.getResponseHeader('X-Close-Modal')) {
+        clearModalDirty();
         closeModal();
       }
       var msg = e.detail.xhr.getResponseHeader('X-Toast-Message');
@@ -289,6 +381,385 @@
         if (sel) sel.value = sortHeader;
       }
     });
+
+    function formatCountdown(ms) {
+      if (ms <= 0) return 'due now';
+      var total = Math.floor(ms / 1000);
+      var days = Math.floor(total / 86400);
+      total -= days * 86400;
+      var hours = Math.floor(total / 3600);
+      total -= hours * 3600;
+      var minutes = Math.floor(total / 60);
+      var seconds = total - minutes * 60;
+      if (days) return 'in ' + days + 'd ' + hours + 'h';
+      if (hours) return 'in ' + hours + 'h ' + minutes + 'm';
+      if (minutes) return 'in ' + minutes + 'm';
+      return 'in ' + seconds + 's';
+    }
+
+    function tickClock() {
+      var clock = document.getElementById('live-clock');
+      if (clock) {
+        clock.textContent = new Date().toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'});
+      }
+      document.querySelectorAll('[data-countdown]').forEach(function(el) {
+        var target = Date.parse(el.getAttribute('data-countdown'));
+        if (isNaN(target)) return;
+        var ms = target - Date.now();
+        el.textContent = formatCountdown(ms);
+        el.classList.toggle('is-soon', ms > 0 && ms < 3600000);
+      });
+    }
+
+    var _quietTargets = {'alarm-list': 1, 'log-view': 1, 'webhook-list': 1, 'calendar-view': 1};
+
+    function normalizeFragment(html) {
+      var template = document.createElement('template');
+      template.innerHTML = html || '';
+      template.content.querySelectorAll('.stagger-item').forEach(function(el) {
+        el.classList.remove('stagger-item');
+      });
+      template.content.querySelectorAll('[style]').forEach(function(el) {
+        el.style.removeProperty('animation-delay');
+        if (!el.getAttribute('style')) el.removeAttribute('style');
+      });
+      template.content.querySelectorAll('[hidden]').forEach(function(el) {
+        el.removeAttribute('hidden');
+      });
+      return template.innerHTML.replace(/>\s+</g, '><').trim();
+    }
+
+    document.body.addEventListener('htmx:beforeSwap', function(e) {
+      var target = e.detail.target;
+      if (!target || !_quietTargets[target.id]) return;
+      var next = e.detail.serverResponse;
+      if (typeof next !== 'string' || !next) return;
+      if (normalizeFragment(target.innerHTML) === normalizeFragment(next)) {
+        e.detail.shouldSwap = false;
+      }
+    });
+
+    function markBoard() {
+      var view = document.getElementById('view-alarms');
+      if (!view) return;
+      view.classList.add('board-enter');
+      setTimeout(function() { view.classList.remove('board-enter'); }, 800);
+    }
+
+    var _boardSeq = 0;
+
+    function refreshBoard() {
+      var board = document.getElementById('next-up');
+      if (!board) return;
+      var seq = ++_boardSeq;
+      fetch('/next-up/data', {headers: {'Accept': 'application/json'}, cache: 'no-store'})
+        .then(function(r) { return r.ok ? r.json() : null; })
+        .then(function(data) {
+          if (data && seq === _boardSeq) patchBoard(data);
+        })
+        .catch(function() {});
+    }
+
+    function markerAria(item) {
+      var aria = item.kind_label + ': ' + item.name + ', ' + item.time_label;
+      if (item.channel) aria += ', #' + item.channel;
+      return aria + '. Edit';
+    }
+
+    function applyMarkerData(el, item) {
+      el.setAttribute('data-key', item.key);
+      el.setAttribute('data-name', item.name || '');
+      el.setAttribute('data-channel', item.channel || '');
+      el.setAttribute('data-time', item.time_label || '');
+      el.setAttribute('data-kind-label', item.kind_label || '');
+      el.setAttribute('data-edit-url', item.edit_url || '');
+      el.setAttribute('data-color', item.color || '');
+      el.setAttribute('aria-label', markerAria(item));
+      el.style.left = item.left_pct + '%';
+      if (item.color) el.style.setProperty('--marker-color', item.color);
+      else el.style.removeProperty('--marker-color');
+    }
+
+    function patchBoard(data) {
+      var board = document.getElementById('next-up');
+      if (!board) return;
+
+      var emptyNow = board.classList.contains('is-empty');
+      if (data.empty || emptyNow) {
+        if (!!data.empty === emptyNow) return;
+        hideMarkerTooltip();
+        markBoard();
+        if (window.htmx) htmx.ajax('GET', '/next-up', {target: '#next-up', swap: 'outerHTML'});
+        return;
+      }
+
+      var changed = board.getAttribute('data-next-key') !== data.next_key;
+      var lead = board.querySelector('.next-lead');
+      if (lead) {
+        var time = lead.querySelector('.next-time');
+        if (time && time.textContent !== data.lead.time) time.textContent = data.lead.time;
+        var period = lead.querySelector('.next-period');
+        if (period && period.textContent !== data.lead.period) period.textContent = data.lead.period;
+        var day = lead.querySelector('.next-day');
+        if (day && day.textContent !== data.lead.day) day.textContent = data.lead.day;
+        var count = lead.querySelector('.next-count');
+        if (count && count.getAttribute('data-countdown') !== data.lead.countdown_iso) {
+          count.textContent = data.lead.countdown_text;
+          count.setAttribute('data-countdown', data.lead.countdown_iso);
+        }
+        var name = lead.querySelector('.next-name');
+        if (name && name.textContent !== data.lead.name) name.textContent = data.lead.name;
+        var meta = lead.querySelector('.next-meta');
+        if (meta && normalizeFragment(meta.innerHTML) !== normalizeFragment(data.lead.meta_html)) {
+          meta.innerHTML = data.lead.meta_html;
+        }
+        if (changed) {
+          lead.classList.remove('lead-update');
+          void lead.offsetWidth;
+          lead.classList.add('lead-update');
+          setTimeout(function() { lead.classList.remove('lead-update'); }, 520);
+        }
+      }
+      board.setAttribute('data-next-key', data.next_key);
+      if (data.counts) {
+        board.setAttribute('data-count-both', data.counts.both);
+        board.setAttribute('data-count-weekly', data.counts.weekly);
+        board.setAttribute('data-count-calendar', data.counts.calendar);
+      }
+
+      var railCount = board.querySelector('.rail-count');
+      if (railCount && railCount.textContent !== data.count_label) railCount.textContent = data.count_label;
+
+      var track = board.querySelector('.rail-track');
+      if (track) {
+        var current = {};
+        track.querySelectorAll('.rail-marker').forEach(function(el) {
+          current[el.getAttribute('data-key')] = el;
+        });
+        var seen = {};
+        data.window.forEach(function(item) {
+          seen[item.key] = true;
+          var el = current[item.key];
+          if (!el) {
+            el = document.createElement('button');
+            el.type = 'button';
+            el.className = 'rail-marker ' + item.kind + ' marker-enter';
+            el.style.setProperty('--marker-delay', item.delay + 'ms');
+            track.appendChild(el);
+            setTimeout(function() { el.classList.remove('marker-enter'); }, 700);
+          } else if (el.dataset.exit === '1') {
+            el.dataset.exit = '0';
+            el.classList.remove('marker-exit');
+          }
+          applyMarkerData(el, item);
+          if (_tooltipMarker === el) showMarkerTooltip(el);
+        });
+        Object.keys(current).forEach(function(key) {
+          if (seen[key]) return;
+          var el = current[key];
+          el.dataset.exit = '1';
+          el.classList.add('marker-exit');
+          setTimeout(function() {
+            if (el.dataset.exit === '1' && el.parentNode) el.parentNode.removeChild(el);
+          }, 320);
+        });
+        if (_tooltipMarker && !document.body.contains(_tooltipMarker)) hideMarkerTooltip();
+      }
+
+      var then = board.querySelector('.rail-then');
+      if (then && typeof data.then_html === 'string' &&
+          normalizeFragment(then.innerHTML) !== normalizeFragment(data.then_html)) {
+        then.innerHTML = data.then_html;
+        then.classList.remove('rail-then-in');
+        void then.offsetWidth;
+        then.classList.add('rail-then-in');
+      }
+
+      applyRailFilter(_railFilter);
+    }
+
+    var _railFilter = 'both';
+    try { _railFilter = localStorage.getItem('dns.railFilter') || 'both'; } catch (e) {}
+    if (['both', 'weekly', 'calendar'].indexOf(_railFilter) === -1) _railFilter = 'both';
+
+    function applyRailFilter(kind) {
+      if (['both', 'weekly', 'calendar'].indexOf(kind) === -1) kind = 'both';
+      _railFilter = kind;
+      try { localStorage.setItem('dns.railFilter', kind); } catch (e) {}
+      hideMarkerTooltip();
+
+      var board = document.getElementById('next-up');
+      if (board && !board.classList.contains('is-empty')) {
+        var markers = Array.prototype.slice.call(board.querySelectorAll('.rail-marker'));
+        markers.forEach(function(marker) {
+          marker.hidden = kind !== 'both' && !marker.classList.contains(kind);
+        });
+        var rows = Array.prototype.slice.call(board.querySelectorAll('.then-row'));
+        rows.forEach(function(row) {
+          var visible;
+          if (kind === 'both') {
+            visible = true;
+          } else {
+            visible = row.getAttribute('data-kind') === kind;
+          }
+          row.hidden = !visible;
+        });
+
+        var visible = markers.filter(function(marker) { return !marker.hidden; }).length;
+        var count = board.querySelector('.rail-count');
+        if (count) {
+          var totals = {
+            both: parseInt(board.getAttribute('data-count-both'), 10),
+            weekly: parseInt(board.getAttribute('data-count-weekly'), 10),
+            calendar: parseInt(board.getAttribute('data-count-calendar'), 10)
+          };
+          var total = totals[kind];
+          if (isNaN(total)) total = visible;
+          var label;
+          if (kind === 'weekly') {
+            label = total === 0 ? 'No alarms in the next 24 hours'
+              : (visible < total ? visible + ' of ' + total : total) + ' ' +
+                (total === 1 ? 'alarm' : 'alarms') + ' in the next 24 hours';
+          } else if (kind === 'calendar') {
+            label = total === 0 ? 'No calendar alerts in the next 24 hours'
+              : (visible < total ? visible + ' of ' + total : total) + ' ' +
+                (total === 1 ? 'calendar alert' : 'calendar alerts') + ' in the next 24 hours';
+          } else {
+            label = total === 0 ? 'Quiet for 24 hours'
+              : (visible < total ? visible + ' of ' + total : total) + ' in the next 24 hours';
+          }
+          if (count.textContent !== label) count.textContent = label;
+        }
+
+        var visibleRows = rows.filter(function(row) { return !row.hidden; }).length;
+        var filterEmpty = board.querySelector('.then-filter-empty');
+        if (filterEmpty) {
+          var showEmpty = kind !== 'both' && rows.length > 0 && visibleRows === 0;
+          filterEmpty.hidden = !showEmpty;
+          if (showEmpty) {
+            var matchingTotal = parseInt(board.getAttribute(
+              kind === 'weekly' ? 'data-count-weekly' : 'data-count-calendar'
+            ), 10) || 0;
+            if (matchingTotal > 0) {
+              filterEmpty.textContent = 'No ' +
+                (kind === 'weekly' ? 'alarms' : 'calendar alerts') +
+                ' in the first 8 deliveries';
+            } else {
+              filterEmpty.textContent = kind === 'weekly'
+                ? 'No alarms in the next 24 hours'
+                : 'No calendar alerts in the next 24 hours';
+            }
+          }
+        }
+      }
+
+      document.querySelectorAll('.rail-filter-btn').forEach(function(btn) {
+        var active = btn.getAttribute('data-rail-filter') === kind;
+        btn.classList.toggle('is-active', active);
+        btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+    }
+
+    var _tooltip = document.getElementById('rail-tooltip');
+    var _tooltipMarker = null;
+
+    function markerColor(marker) {
+      return marker.getAttribute('data-color') ||
+        (marker.classList.contains('calendar') ? '#4CC38A' : '#8B9BFF');
+    }
+
+    function showMarkerTooltip(marker) {
+      if (!_tooltip || !marker) return;
+      _tooltipMarker = marker;
+      _tooltip.querySelector('.rail-tooltip-kind').textContent = marker.getAttribute('data-kind-label') || '';
+      _tooltip.querySelector('.rail-tooltip-name').textContent = marker.getAttribute('data-name') || '';
+      _tooltip.querySelector('.rail-tooltip-time').textContent = marker.getAttribute('data-time') || '';
+      var channel = marker.getAttribute('data-channel') || '';
+      var channelEl = _tooltip.querySelector('.rail-tooltip-channel');
+      channelEl.textContent = channel ? '#' + channel : '';
+      channelEl.hidden = !channel;
+      _tooltip.style.setProperty('--tooltip-color', markerColor(marker));
+
+      var rect = marker.getBoundingClientRect();
+      var half = Math.min(130, window.innerWidth / 2 - 8);
+      var left = Math.min(Math.max(rect.left + rect.width / 2, half), window.innerWidth - half);
+      _tooltip.classList.remove('below');
+      _tooltip.style.left = left + 'px';
+      _tooltip.style.top = (rect.top - 10) + 'px';
+      _tooltip.setAttribute('aria-hidden', 'false');
+      _tooltip.classList.add('show');
+      if (_tooltip.getBoundingClientRect().top < 8) {
+        _tooltip.classList.add('below');
+        _tooltip.style.top = (rect.bottom + 10) + 'px';
+      }
+    }
+
+    function hideMarkerTooltip() {
+      if (!_tooltip) return;
+      _tooltip.classList.remove('show');
+      _tooltip.setAttribute('aria-hidden', 'true');
+      _tooltipMarker = null;
+    }
+
+    document.body.addEventListener('mouseover', function(e) {
+      var marker = e.target && e.target.closest ? e.target.closest('.rail-marker') : null;
+      if (marker) showMarkerTooltip(marker);
+    });
+
+    document.body.addEventListener('mouseout', function(e) {
+      var marker = e.target && e.target.closest ? e.target.closest('.rail-marker') : null;
+      if (!marker || marker !== _tooltipMarker) return;
+      if (e.relatedTarget && marker.contains(e.relatedTarget)) return;
+      hideMarkerTooltip();
+    });
+
+    document.body.addEventListener('focusin', function(e) {
+      var marker = e.target && e.target.closest ? e.target.closest('.rail-marker') : null;
+      if (marker) showMarkerTooltip(marker);
+    });
+
+    document.body.addEventListener('focusout', function(e) {
+      var marker = e.target && e.target.closest ? e.target.closest('.rail-marker') : null;
+      if (marker && marker === _tooltipMarker) hideMarkerTooltip();
+    });
+
+    document.body.addEventListener('click', function(e) {
+      var target = e.target && e.target.closest ? e.target.closest('.rail-marker, .then-row') : null;
+      if (!target) return;
+      var url = target.getAttribute('data-edit-url');
+      if (!url) return;
+      hideMarkerTooltip();
+      if (window.htmx) htmx.ajax('GET', url, {target: '#modal-area', swap: 'innerHTML'});
+    });
+
+    document.body.addEventListener('click', function(e) {
+      var btn = e.target && e.target.closest ? e.target.closest('.rail-filter-btn') : null;
+      if (btn) applyRailFilter(btn.getAttribute('data-rail-filter'));
+    });
+
+    document.body.addEventListener('htmx:afterSwap', function(e) {
+      if (e.detail.target && e.detail.target.id === 'next-up') applyRailFilter(_railFilter);
+    });
+
+    window.addEventListener('scroll', hideMarkerTooltip, true);
+    window.addEventListener('resize', hideMarkerTooltip);
+
+    window.addEventListener('beforeunload', function(e) {
+      if (document.querySelector('#modal-area form[data-dirty="1"]')) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    });
+
+    ['refresh-lists', 'alarm-toggled'].forEach(function(name) {
+      document.body.addEventListener(name, refreshBoard);
+    });
+
+    applyRailFilter(_railFilter);
+    markBoard();
+    tickClock();
+    setInterval(tickClock, 1000);
+    setInterval(refreshBoard, 60000);
   </script>
 </body>
 </html>

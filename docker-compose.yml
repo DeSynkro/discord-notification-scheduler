@@ -6,8 +6,6 @@ services:
     volumes:
       - ./data:/app/data
       - /etc/localtime:/etc/localtime:ro
-    environment:
-      - TZ=
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9001/')"]
